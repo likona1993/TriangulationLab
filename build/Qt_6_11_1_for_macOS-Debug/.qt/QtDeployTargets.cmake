@@ -1,0 +1,6 @@
+set(__QT_DEPLOY_TARGET_core_FILE /Users/lidia_minnegalieva/dev/Qt/TriangulationLab/build/Qt_6_11_1_for_macOS-Debug/src/core/libcore.a)
+set(__QT_DEPLOY_TARGET_core_TYPE STATIC_LIBRARY)
+set(__QT_DEPLOY_TARGET_TriangulationLab_FILE /Users/lidia_minnegalieva/dev/Qt/TriangulationLab/build/Qt_6_11_1_for_macOS-Debug/src/gui/TriangulationLab)
+set(__QT_DEPLOY_TARGET_TriangulationLab_TYPE EXECUTABLE)
+set(__QT_DEPLOY_TARGET_test_core_FILE /Users/lidia_minnegalieva/dev/Qt/TriangulationLab/build/Qt_6_11_1_for_macOS-Debug/src/tests/test_core)
+set(__QT_DEPLOY_TARGET_test_core_TYPE EXECUTABLE)
