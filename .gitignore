@@ -1,0 +1,52 @@
+# Build directories
+build/
+build-*/
+out/
+cmake-build-*/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Testing/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+
+# Qt Creator user files
+*.pro.user
+*.pro.user.*
+*.qbs.user
+*.qbs.user.*
+.qtcreator/
+CMakeLists.txt.user
+CMakeLists.txt.user.*
+
+# Qt generated files
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.qmlc
+*.jsc
+Makefile*
+*build-*
+
+# macOS
+.DS_Store
+
+# Editors / IDEs
+.vscode/
+.idea/
+
+# Compiled binaries
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.exe
+*.app/
