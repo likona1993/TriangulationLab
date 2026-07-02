@@ -5,13 +5,72 @@
 
 namespace geo {
 
+namespace {
+
+// Ориентация тройки точек: 0 - коллинеарны, 1 - по часовой, 2 - против часовой
+template<typename T>
+int orientation(const Point2<T>& p, const Point2<T>& q, const Point2<T>& r, T eps) {
+    const T val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y);
+    if (isZero(val, eps)) return 0;
+    return (val > T(0)) ? 1 : 2;
+}
+
+// Проверка, что точка q лежит внутри ограничивающего прямоугольника отрезка p-r
+// (вызывается только когда p, q, r уже коллинеарны)
+template<typename T>
+bool onSegment(const Point2<T>& p, const Point2<T>& q, const Point2<T>& r, T eps) {
+    return inRange(q.x, std::min(p.x, r.x), std::max(p.x, r.x), eps) &&
+           inRange(q.y, std::min(p.y, r.y), std::max(p.y, r.y), eps);
+}
+
+// Пересекаются ли отрезки p1-q1 и p2-q2 (включая коллинеарное перекрытие)
+template<typename T>
+bool segmentsIntersect(const Point2<T>& p1, const Point2<T>& q1,
+                       const Point2<T>& p2, const Point2<T>& q2, T eps) {
+    const int o1 = orientation(p1, q1, p2, eps);
+    const int o2 = orientation(p1, q1, q2, eps);
+    const int o3 = orientation(p2, q2, p1, eps);
+    const int o4 = orientation(p2, q2, q1, eps);
+
+    if (o1 != o2 && o3 != o4) return true;
+
+    if (o1 == 0 && onSegment(p1, p2, q1, eps)) return true;
+    if (o2 == 0 && onSegment(p1, q2, q1, eps)) return true;
+    if (o3 == 0 && onSegment(p2, p1, q2, eps)) return true;
+    if (o4 == 0 && onSegment(p2, q1, q2, eps)) return true;
+
+    return false;
+}
+
+} // namespace
+
+// ============================================================
+//  Проверка: является ли полигон простым (без самопересечений рёбер)
+// ============================================================
+template<typename T>
+bool EarClipping<T>::isSimplePolygon(const Polygon2<T>& poly, T eps) {
+    const size_t n = poly.size();
+    for (size_t i = 0; i < n; ++i) {
+        const size_t i_next = (i + 1) % n;
+        for (size_t j = i + 1; j < n; ++j) {
+            const size_t j_next = (j + 1) % n;
+            // Смежные рёбра имеют общую вершину - это не пересечение
+            if (j == i_next || j_next == i) continue;
+            if (segmentsIntersect(poly[i], poly[i_next], poly[j], poly[j_next], eps)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 // ============================================================
 //  Проверка: выпуклая ли вершина (для CCW полигона)
 // ============================================================
 template<typename T>
 bool EarClipping<T>::isConvex(const Point2<T>& prev, const Point2<T>& curr,
                               const Point2<T>& next, T eps) {
-    const Point2<T> v1 = prev - curr;
+    const Point2<T> v1 = curr - prev;
     const Point2<T> v2 = next - curr;
     const T cross = v1.cross(v2);
     return cross > eps;
@@ -71,6 +130,11 @@ TriangulationResult<T> EarClipping<T>::triangulate(const Polygon2<T>& input, T e
 
     if (input.size() < 3) {
         result.error_message = "Polygon must have at least 3 vertices";
+        return result;
+    }
+
+    if (!isSimplePolygon(input, eps)) {
+        result.error_message = "Polygon is self-intersecting";
         return result;
     }
 

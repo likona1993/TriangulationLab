@@ -47,6 +47,7 @@ private:
                   const Point2<T>& next, T eps);
     bool pointInTriangle(const Point2<T>& p, const Point2<T>& a,
                          const Point2<T>& b, const Point2<T>& c, T eps);
+    bool isSimplePolygon(const Polygon2<T>& poly, T eps);
 };
 
 } // namespace geo
