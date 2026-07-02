@@ -212,32 +212,6 @@ TEST(RemoveCollinearPointsTest, RectangleWithExtraPointOnEdge) {
     EXPECT_DOUBLE_EQ(poly[3].x, 0); EXPECT_DOUBLE_EQ(poly[3].y, 1);
 }
 
-TEST(RemoveCollinearPointsTest, ThreeCollinearPoints) {
-    Polygon2<double> poly = {{0,0}, {1,1}, {2,2}};
-    removeCollinearPoints(poly);
-    // Implementation leaves polygon unchanged because after removal we'd have <3 vertices
-    EXPECT_EQ(poly.size(), 3);
-    EXPECT_DOUBLE_EQ(signedArea2D(poly), 0.0);
-}
-
-TEST(RemoveCollinearPointsTest, AllPointsCollinear) {
-    Polygon2<double> poly = {{0,0}, {1,0}, {2,0}, {3,0}, {4,0}};
-    removeCollinearPoints(poly);
-    // Unchanged because result would have only 2 vertices
-    EXPECT_EQ(poly.size(), 5);
-    EXPECT_DOUBLE_EQ(signedArea2D(poly), 0.0);
-}
-
-TEST(RemoveCollinearPointsTest, DuplicatePoints) {
-    Polygon2<double> poly = {{0,0}, {1,0}, {1,0}, {1,1}, {0,1}};
-    removeCollinearPoints(poly);
-    EXPECT_EQ(poly.size(), 4);
-    EXPECT_DOUBLE_EQ(poly[0].x, 0); EXPECT_DOUBLE_EQ(poly[0].y, 0);
-    EXPECT_DOUBLE_EQ(poly[1].x, 1); EXPECT_DOUBLE_EQ(poly[1].y, 0);
-    EXPECT_DOUBLE_EQ(poly[2].x, 1); EXPECT_DOUBLE_EQ(poly[2].y, 1);
-    EXPECT_DOUBLE_EQ(poly[3].x, 0); EXPECT_DOUBLE_EQ(poly[3].y, 1);
-}
-
 TEST(RemoveCollinearPointsTest, PolygonWithCollinearVerticesOnEdges) {
     Polygon2<double> poly = {{0,0}, {1,0}, {2,0}, {2,1}, {2,2}, {1,2}, {0,2}, {0,1}};
     removeCollinearPoints(poly);
@@ -247,3 +221,101 @@ TEST(RemoveCollinearPointsTest, PolygonWithCollinearVerticesOnEdges) {
     EXPECT_DOUBLE_EQ(poly[2].x, 2); EXPECT_DOUBLE_EQ(poly[2].y, 2);
     EXPECT_DOUBLE_EQ(poly[3].x, 0); EXPECT_DOUBLE_EQ(poly[3].y, 2);
 }
+
+TEST(RemoveCollinearPointsTest, CollinearPointAtWrapAroundIndex) {
+    // The redundant point (1,0) sits at index 0; its "previous" neighbour
+    // wraps around to the last element, exercising the (i - 1 + n) % n path.
+    Polygon2<double> poly = {{1,0}, {2,0}, {2,2}, {0,2}, {0,0}};
+    removeCollinearPoints(poly);
+    EXPECT_EQ(poly.size(), 4);
+    EXPECT_DOUBLE_EQ(poly[0].x, 2); EXPECT_DOUBLE_EQ(poly[0].y, 0);
+    EXPECT_DOUBLE_EQ(poly[1].x, 2); EXPECT_DOUBLE_EQ(poly[1].y, 2);
+    EXPECT_DOUBLE_EQ(poly[2].x, 0); EXPECT_DOUBLE_EQ(poly[2].y, 2);
+    EXPECT_DOUBLE_EQ(poly[3].x, 0); EXPECT_DOUBLE_EQ(poly[3].y, 0);
+}
+
+TEST(RemoveCollinearPointsTest, DuplicatePoints) {
+    // Two consecutive duplicates at indices 1 and 2 both disappear:
+    // index 1 is dropped because its "next" vertex equals it (zero-length
+    // edge vector makes the cross product trivially 0), and index 2 is
+    // dropped by the prev-equality duplicate check. Only 3 vertices survive.
+    Polygon2<double> poly = {{0,0}, {1,0}, {1,0}, {1,1}, {0,1}};
+    removeCollinearPoints(poly);
+    EXPECT_EQ(poly.size(), 3);
+    EXPECT_DOUBLE_EQ(poly[0].x, 0); EXPECT_DOUBLE_EQ(poly[0].y, 0);
+    EXPECT_DOUBLE_EQ(poly[1].x, 1); EXPECT_DOUBLE_EQ(poly[1].y, 1);
+    EXPECT_DOUBLE_EQ(poly[2].x, 0); EXPECT_DOUBLE_EQ(poly[2].y, 1);
+}
+
+TEST(RemoveCollinearPointsTest, DuplicateAtWrapAround) {
+    // First and last vertices coincide. Both copies are dropped: index 4
+    // is removed by the prev-equality duplicate check, and index 0 is
+    // removed because its "next" vertex equals it (zero-length edge vector
+    // makes the cross product trivially 0) -- the duplicate pair is fully
+    // removed rather than collapsed to a single vertex.
+    Polygon2<double> poly = {{0,0}, {1,0}, {1,1}, {0,1}, {0,0}};
+    removeCollinearPoints(poly);
+    EXPECT_EQ(poly.size(), 3);
+    EXPECT_DOUBLE_EQ(poly[0].x, 1); EXPECT_DOUBLE_EQ(poly[0].y, 0);
+    EXPECT_DOUBLE_EQ(poly[1].x, 1); EXPECT_DOUBLE_EQ(poly[1].y, 1);
+    EXPECT_DOUBLE_EQ(poly[2].x, 0); EXPECT_DOUBLE_EQ(poly[2].y, 1);
+}
+
+TEST(RemoveCollinearPointsTest, ConvexPolygonUnchanged) {
+    Polygon2<double> poly = {{0,0}, {3,1}, {2,3}, {-1,2}};
+    auto original = poly;
+    removeCollinearPoints(poly);
+    ASSERT_EQ(poly.size(), original.size());
+    for (size_t i = 0; i < poly.size(); ++i) {
+        EXPECT_DOUBLE_EQ(poly[i].x, original[i].x);
+        EXPECT_DOUBLE_EQ(poly[i].y, original[i].y);
+    }
+}
+
+TEST(RemoveCollinearPointsTest, ThreeCollinearPoints) {
+    Polygon2<double> poly = {{0,0}, {1,1}, {2,2}};
+    removeCollinearPoints(poly);
+    // Implementation leaves the polygon unchanged because after removal
+    // fewer than 3 vertices would remain.
+    EXPECT_EQ(poly.size(), 3);
+    EXPECT_DOUBLE_EQ(signedArea2D(poly), 0.0);
+}
+
+TEST(RemoveCollinearPointsTest, AllPointsCollinear) {
+    Polygon2<double> poly = {{0,0}, {1,0}, {2,0}, {3,0}, {4,0}};
+    removeCollinearPoints(poly);
+    // Unchanged because the result would have only 2 vertices.
+    EXPECT_EQ(poly.size(), 5);
+    EXPECT_DOUBLE_EQ(signedArea2D(poly), 0.0);
+}
+
+TEST(RemoveCollinearPointsTest, FewerThanThreePointsUnchanged) {
+    Polygon2<double> poly = {{0,0}, {1,1}};
+    removeCollinearPoints(poly);
+    EXPECT_EQ(poly.size(), 2);
+    EXPECT_DOUBLE_EQ(poly[0].x, 0); EXPECT_DOUBLE_EQ(poly[0].y, 0);
+    EXPECT_DOUBLE_EQ(poly[1].x, 1); EXPECT_DOUBLE_EQ(poly[1].y, 1);
+}
+
+TEST(RemoveCollinearPointsTest, DefaultEpsilonKeepsSlightBend) {
+    // (1, 2e-7) is bent just enough that the default (tight) epsilon
+    // should NOT treat it as collinear.
+    Polygon2<double> poly = {{0,0}, {1,2e-7}, {2,0}, {2,2}, {0,2}};
+    removeCollinearPoints(poly);
+    EXPECT_EQ(poly.size(), 5);
+}
+
+TEST(RemoveCollinearPointsTest, LooseEpsilonRemovesSlightBend) {
+    // Same slightly-bent point as above, but with a custom epsilon loose
+    // enough to treat it as collinear and drop it.
+    Polygon2<double> poly = {{0,0}, {1,2e-7}, {2,0}, {2,2}, {0,2}};
+    removeCollinearPoints(poly, 1e-6);
+    EXPECT_EQ(poly.size(), 4);
+    EXPECT_DOUBLE_EQ(poly[0].x, 0); EXPECT_DOUBLE_EQ(poly[0].y, 0);
+    EXPECT_DOUBLE_EQ(poly[1].x, 2); EXPECT_DOUBLE_EQ(poly[1].y, 0);
+    EXPECT_DOUBLE_EQ(poly[2].x, 2); EXPECT_DOUBLE_EQ(poly[2].y, 2);
+    EXPECT_DOUBLE_EQ(poly[3].x, 0); EXPECT_DOUBLE_EQ(poly[3].y, 2);
+}
+
+
+
