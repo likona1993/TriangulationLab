@@ -202,7 +202,7 @@ TEST(EnsureCCWTest, DegeneratePolygon) {
 // removeCollinearPoints tests (adjusted to actual implementation)
 // ============================================================================
 
-/*TEST(RemoveCollinearPointsTest, RectangleWithExtraPointOnEdge) {
+TEST(RemoveCollinearPointsTest, RectangleWithExtraPointOnEdge) {
     Polygon2<double> poly = {{0,0}, {1,0}, {2,0}, {2,1}, {1,1}, {0,1}};
     removeCollinearPoints(poly);
     EXPECT_EQ(poly.size(), 4);
@@ -246,4 +246,4 @@ TEST(RemoveCollinearPointsTest, PolygonWithCollinearVerticesOnEdges) {
     EXPECT_DOUBLE_EQ(poly[1].x, 2); EXPECT_DOUBLE_EQ(poly[1].y, 0);
     EXPECT_DOUBLE_EQ(poly[2].x, 2); EXPECT_DOUBLE_EQ(poly[2].y, 2);
     EXPECT_DOUBLE_EQ(poly[3].x, 0); EXPECT_DOUBLE_EQ(poly[3].y, 2);
-}*/
+}
