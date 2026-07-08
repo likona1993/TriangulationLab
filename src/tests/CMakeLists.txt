@@ -1,6 +1,11 @@
-# Находим Google Test
-find_package(GTest REQUIRED)
-include_directories(${GTEST_INCLUDE_DIRS})
+# Подключаем GoogleTest через FetchContent
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  GIT_REPOSITORY https://github.com/google/googletest.git
+  GIT_TAG v1.15.2
+)
+FetchContent_MakeAvailable(googletest)
 
 # Тесты для ядра
 add_executable(test_core
@@ -8,7 +13,12 @@ add_executable(test_core
     test_ear_clipping.cpp
 )
 
-target_link_libraries(test_core core ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} pthread)
+# Линкуем с целями GTest
+target_link_libraries(test_core 
+    core                     # ваша библиотека ядра
+    gtest_main               # предоставляет main() и линкует gtest
+    pthread
+)
 
 target_include_directories(test_core PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
