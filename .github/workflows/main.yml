@@ -14,7 +14,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install system dependencies (XCB, OpenGL, Eigen)
+      - name: Install system dependencies (XCB, OpenGL, Eigen, Qt6)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -32,23 +32,13 @@ jobs:
             libxkbcommon-x11-dev \
             libx11-dev \
             libx11-xcb-dev \
-            libeigen3-dev
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.5.3'
-          host: 'linux'
-          target: 'desktop'
-          arch: 'gcc_64'
-          dir: '${{ runner.temp }}/Qt'
-          install-deps: 'true'
-          modules: 'qtbase'
-          aqtversion: '==3.1.19'
-          pyaqtinstall-args: '--baseurl https://qt.mirror.constant.com'
+            libeigen3-dev \
+            qt6-base-dev \
+            qt6-tools-dev \
+            qt6-opengl-dev
 
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/Qt6
 
       - name: Build
         run: cmake --build build -j $(nproc)
