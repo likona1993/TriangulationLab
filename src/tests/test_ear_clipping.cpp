@@ -52,7 +52,7 @@ TEST(EarClippingTest, Square) {
     auto history = ec.getDebugHistory();
     EXPECT_EQ(history.size(), 2);
     ASSERT_FALSE(history.empty());
-    auto lastTri = history.back().cut_triangle;
+    auto lastTri = history.back().added_triangles[0];
     Polygon2<double> lastPoly = {lastTri.v0, lastTri.v1, lastTri.v2};
     EXPECT_GT(absArea(lastPoly), EPSILON<double>);
 }
@@ -194,8 +194,9 @@ TEST(EarClippingTest, FinalTriangleInDebugHistory) {
     auto last = history.back();
     bool found = false;
     for (const auto& t : res.triangles) {
-        if ( (t.v0 == last.cut_triangle.v0 && t.v1 == last.cut_triangle.v1 && t.v2 == last.cut_triangle.v2) ||
-            (t.v0 == last.cut_triangle.v0 && t.v1 == last.cut_triangle.v2 && t.v2 == last.cut_triangle.v1) ) {
+        auto cut_triangle = last.added_triangles[0];
+        if ( (t.v0 == cut_triangle.v0 && t.v1 == cut_triangle.v1 && t.v2 == cut_triangle.v2) ||
+            (t.v0 == cut_triangle.v0 && t.v1 == cut_triangle.v2 && t.v2 == cut_triangle.v1) ) {
             found = true;
             break;
         }

@@ -110,15 +110,15 @@ TriangulationResult<T> EarClipping<T>::triangulate(const Polygon2<T>& input, T e
             if (isEar(working, i, current_eps)) {
                 // Сохраняем состояние ДО удаления
                 DebugStep<T> step;
-                step.remaining_vertices = working;
+                step.polygon_before = working;
                 step.ear_index = i;
 
                 const size_t prev_idx = (i - 1 + n) % n;
                 const size_t next_idx = (i + 1) % n;
-                step.cut_triangle = Triangle2<T>(working[prev_idx], working[i], working[next_idx]);
+                step.added_triangles.push_back(Triangle2<T>(working[prev_idx], working[i], working[next_idx]));
 
                 m_history.push_back(step);
-                result.triangles.push_back(step.cut_triangle);
+                result.triangles.push_back(step.added_triangles[0]);
 
                 // Удаляем вершину-ухо
                 working.erase(working.begin() + i);
@@ -150,11 +150,11 @@ TriangulationResult<T> EarClipping<T>::triangulate(const Polygon2<T>& input, T e
     // Остался последний треугольник
     if (working.size() == 3) {
         DebugStep<T> step;
-        step.remaining_vertices = working;
+        step.polygon_before = working;
         step.ear_index = 0;
-        step.cut_triangle = Triangle2<T>(working[0], working[1], working[2]);
+        step.added_triangles.push_back(Triangle2<T>(working[0], working[1], working[2]));
         m_history.push_back(step);
-        result.triangles.push_back(step.cut_triangle);
+        result.triangles.push_back(step.added_triangles[0]);
     }
 
     result.success = true;

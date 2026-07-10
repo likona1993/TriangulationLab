@@ -6,7 +6,9 @@ add_library(core STATIC
     geometry/ear_clipping.h
     geometry/ear_clipping.hpp
     geometry/monotone_triangulation.h
+    geometry/triangulation_types.h
     utils/numeric.h
+    utils/geometry_predicates.h
 )
 
 # Включаемые директории

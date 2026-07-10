@@ -48,13 +48,13 @@ geo::Polygon2<double> DebugFacade::getCurrentPolygon() const {
     if (m_currentStep == -1) {
         // Начальное состояние: возвращаем полигон из первого шага (до отрезания)
         if (!m_history.empty()) {
-            return m_history[0].remaining_vertices;
+            return m_history[0].polygon_before;
         }
         return {};
     }
 
     if (m_currentStep < getTotalSteps()) {
-        return m_history[m_currentStep].remaining_vertices;
+        return m_history[m_currentStep].polygon_before;
     }
     return {};
 }
@@ -62,14 +62,14 @@ geo::Polygon2<double> DebugFacade::getCurrentPolygon() const {
 std::vector<geo::Triangle2<double>> DebugFacade::getCutTriangles() const {
     std::vector<geo::Triangle2<double>> result;
     for (int i = 0; i <= m_currentStep && i < getTotalSteps(); ++i) {
-        result.push_back(m_history[i].cut_triangle);
+        result.push_back(m_history[i].added_triangles[0]);
     }
     return result;
 }
 
 geo::Triangle2<double> DebugFacade::getLastCutTriangle() const {
     if (m_currentStep >= 0 && m_currentStep < getTotalSteps()) {
-        return m_history[m_currentStep].cut_triangle;
+        return m_history[m_currentStep].added_triangles[0];
     }
     return {};
 }

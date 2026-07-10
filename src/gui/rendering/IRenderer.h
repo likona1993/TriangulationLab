@@ -50,11 +50,11 @@ public:
 
     // Информационные надписи
     virtual void drawText(const QString& text, const QPointF& position,
-                          const QColor& color = Qt::white, int fontSize = 12) = 0;
+                          const QColor& color = Qt::black, int fontSize = 12) = 0;
     
     //Отрисовка текста в экранных координатах
     virtual void drawTextScreen(const QString& text, const QPointF& position,
-                          const QColor& color = Qt::white, int fontSize = 12) = 0;
+                          const QColor& color = Qt::black, int fontSize = 12) = 0;
 
     //масштаб
     qreal m_scale = 1.0;
