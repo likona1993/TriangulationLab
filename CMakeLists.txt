@@ -31,6 +31,9 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets OpenGL)
 # Опциональные зависимости
 find_package(Eigen3 QUIET)
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG   ${CMAKE_BINARY_DIR}/bin/Debug)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin/Release)
+
 # Поддиректории
 add_subdirectory(src/core)
 add_subdirectory(src/gui)
@@ -49,4 +52,4 @@ configure_file(
 )
 
 # Установка (опционально)
-install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
+install(TARGETS TriangulationLab RUNTIME DESTINATION bin)
