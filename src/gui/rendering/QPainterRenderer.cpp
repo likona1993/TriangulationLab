@@ -182,11 +182,11 @@ void QPainterRenderer::drawText(const QString& text, const QPointF& position,
 
 void QPainterRenderer::drawTextScreen(const QString &text, const QPointF &position, const QColor &color, int fontSize)
 {
-    if (!m_isActive) return;
+    if (!m_isActive || !m_painter) return;
 
     m_painter->save();
     m_painter->resetTransform(); // Сбрасываем мировую матрицу в экранные
-    drawTextScreen(text, position, color, fontSize);
+    drawText(text, position, color, fontSize);
 
     m_painter->restore(); // Возвращаем мировую матрицу обратно
 

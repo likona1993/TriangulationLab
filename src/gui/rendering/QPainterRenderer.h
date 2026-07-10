@@ -42,7 +42,7 @@ public:
                   const QColor& color, int fontSize) override;
 
     void drawTextScreen(const QString& text, const QPointF& position,
-        const QColor& color = Qt::white, int fontSize = 12) override;
+        const QColor& color = Qt::black, int fontSize = 12) override;
 
 private:
     QWidget* m_widget = nullptr;

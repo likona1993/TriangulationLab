@@ -54,7 +54,7 @@ void TriangulationWidget::paintEvent(QPaintEvent* /*event*/) {
 
     // 3. Основной полигон
     if (!m_polygonPoints.empty()) {
-        QColor polyColor = m_facade->isPolygonClosed() ? Qt::green : Qt::white;
+        QColor polyColor = m_facade->isPolygonClosed() ? Qt::green : Qt::black;
         m_renderer->drawPolygon(m_polygonPoints, polyColor, 2.0f, false);
     }
 
@@ -67,7 +67,7 @@ void TriangulationWidget::paintEvent(QPaintEvent* /*event*/) {
         }
         m_renderer->drawVertexLabels(m_debugPolygon, Qt::yellow);
     } else {
-        m_renderer->drawVertexLabels(m_polygonPoints, Qt::white);
+        m_renderer->drawVertexLabels(m_polygonPoints, Qt::black);
     }
 
     // 5. Информационная строка (в экранных координатах)
