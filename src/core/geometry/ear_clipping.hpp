@@ -8,55 +8,6 @@
 namespace geo {
 
 // ============================================================
-//  Проверка: является ли полигон простым (без самопересечений рёбер)
-// ============================================================
-template<typename T>
-bool EarClipping<T>::isSimplePolygon(const Polygon2<T>& poly, T eps) {
-    const size_t n = poly.size();
-    for (size_t i = 0; i < n; ++i) {
-        const size_t i_next = (i + 1) % n;
-        for (size_t j = i + 1; j < n; ++j) {
-            const size_t j_next = (j + 1) % n;
-            // Смежные рёбра имеют общую вершину - это не пересечение
-            if (j == i_next || j_next == i) continue;
-            if (segmentsIntersect(poly[i], poly[i_next], poly[j], poly[j_next], eps)) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-// ============================================================
-//  Проверка: выпуклая ли вершина (для CCW полигона)
-// ============================================================
-template<typename T>
-bool EarClipping<T>::isConvex(const Point2<T>& prev, const Point2<T>& curr,
-                              const Point2<T>& next, T eps) {
-    const Point2<T> v1 = curr - prev;
-    const Point2<T> v2 = next - curr;
-    const T cross = v1.cross(v2);
-    return cross > eps;
-}
-
-// ============================================================
-//  Проверка: находится ли точка P внутри треугольника (A, B, C)
-// ============================================================
-template<typename T>
-bool EarClipping<T>::pointInTriangle(const Point2<T>& p, const Point2<T>& a,
-                                     const Point2<T>& b, const Point2<T>& c,
-                                     T eps) {
-    const T d1 = (p - a).cross(b - a);
-    const T d2 = (p - b).cross(c - b);
-    const T d3 = (p - c).cross(a - c);
-
-    const bool has_neg = (d1 < -eps) || (d2 < -eps) || (d3 < -eps);
-    const bool has_pos = (d1 > eps) || (d2 > eps) || (d3 > eps);
-
-    return !(has_neg && has_pos);
-}
-
-// ============================================================
 //  Проверка: является ли вершина idx ухом
 // ============================================================
 template<typename T>

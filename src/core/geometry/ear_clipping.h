@@ -27,11 +27,6 @@ private:
 
     // Вспомогательные методы
     bool isEar(const Polygon2<T>& poly, size_t idx, T eps);
-    bool isConvex(const Point2<T>& prev, const Point2<T>& curr,
-                  const Point2<T>& next, T eps);
-    bool pointInTriangle(const Point2<T>& p, const Point2<T>& a,
-                         const Point2<T>& b, const Point2<T>& c, T eps);
-    bool isSimplePolygon(const Polygon2<T>& poly, T eps);
 };
 
 } // namespace geo
