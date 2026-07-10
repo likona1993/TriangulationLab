@@ -32,6 +32,7 @@ public:
     ~TriangulationFacade() override;
 
     // ==================== Управление полигоном ====================
+    void setPolygon(const geo::Polygon2<double>& polygon);
     void addPoint(double x, double y);
     void addPoint(const QPointF& point);
     void removeLastPoint();

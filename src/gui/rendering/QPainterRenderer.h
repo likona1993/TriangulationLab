@@ -13,7 +13,11 @@ public:
 
     void beginFrame() override;
     void endFrame() override;
-    void setTransform(const QRectF& worldRect, const QRect& viewport) override;
+    void resetView(const QRectF& worldRect, const QRect& viewport) override;
+
+    void applyTransform() override;
+
+    QPointF screenToWorld(const QPointF& screenPos) override;
 
     void drawPolygon(const std::vector<QPointF>& points,
                      const QColor& color,
@@ -36,6 +40,9 @@ public:
 
     void drawText(const QString& text, const QPointF& position,
                   const QColor& color, int fontSize) override;
+
+    void drawTextScreen(const QString& text, const QPointF& position,
+        const QColor& color = Qt::white, int fontSize = 12) override;
 
 private:
     QWidget* m_widget = nullptr;

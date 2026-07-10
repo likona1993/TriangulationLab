@@ -22,30 +22,53 @@ void QPainterRenderer::endFrame() {
     m_isActive = false;
 }
 
-void QPainterRenderer::setTransform(const QRectF& worldRect, const QRect& viewport) {
-    if (!m_isActive) return;
-
-    m_painter->resetTransform();
-
+void QPainterRenderer::resetView(const QRectF &worldRect, const QRect &viewport)
+{
     // Масштабируем с сохранением пропорций
     qreal scaleX = viewport.width() / worldRect.width();
     qreal scaleY = viewport.height() / worldRect.height();
-    qreal scale = std::min(scaleX, scaleY);
+    m_scale = std::min(scaleX, scaleY);
 
     // Центрируем
-    qreal dx = viewport.center().x() - scale * worldRect.center().x();
-    qreal dy = viewport.center().y() - scale * worldRect.center().y();
-
-    m_painter->translate(dx, dy);
-    m_painter->scale(scale, -scale); // инвертируем Y
+    qreal dx = viewport.center().x() - m_scale * worldRect.center().x();
+    qreal dy = viewport.center().y() + m_scale * worldRect.center().y();
+    m_offset = {dx, dy};
 }
 
-void QPainterRenderer::drawPolygon(const std::vector<QPointF>& points,
-                                   const QColor& color,
+void QPainterRenderer::applyTransform()
+{
+    if (!m_isActive || !m_painter) return;
+
+    m_painter->resetTransform();
+
+    // Применяем сохраненный сдвиг и масштаб с инверсией Y
+    m_painter->translate(m_offset.x(), m_offset.y());
+    m_painter->scale(m_scale, -m_scale);
+}
+
+QPointF QPainterRenderer::screenToWorld(const QPointF &screenPos)
+{
+    // 1. Создаем пустую матрицу трансформации
+    QTransform matrix;
+
+    // 2. Повторяем ровно те же шаги, что и в applyTransform()
+    matrix.translate(m_offset.x(), m_offset.y());
+    matrix.scale(m_scale, -m_scale); // Инверсия Y
+
+    // 3. Получаем обратную матрицу
+    QTransform invertedMatrix = matrix.inverted();
+
+    // 4. Безопасно переводим координаты без обращения к m_painter
+    return invertedMatrix.map(screenPos);
+}
+
+void QPainterRenderer::drawPolygon(const std::vector<QPointF> &points,
+                                   const QColor &color,
                                    float lineWidth,
                                    bool fill,
-                                   const QColor& fillColor) {
-    if (!m_isActive || points.size() < 2) return;
+                                   const QColor &fillColor)
+{
+    if (!m_isActive || points.size() < 1) return;
 
     QPolygonF poly;
     for (const auto& p : points) {
@@ -83,16 +106,47 @@ void QPainterRenderer::drawVertexLabels(const std::vector<QPointF>& points,
                                         const QColor& color) {
     if (!m_isActive || points.empty()) return;
 
-    m_painter->setPen(color);
+    // 1. Сохраняем состояние глобальной (мировой) матрицы
+    m_painter->save();
+
+    // Настраиваем шрифт один раз (размер 10pt на экране)
     QFont font = m_painter->font();
     font.setPointSize(10);
     m_painter->setFont(font);
 
+    // Настраиваем перо и кисть для маркеров
+    m_painter->setPen(Qt::NoPen); // маркеры без обводки
+    m_painter->setBrush(QBrush(color)); // заливка цвета маркера
+
     for (size_t i = 0; i < points.size(); ++i) {
         const QPointF& p = points[i];
+        
+        m_painter->save(); // Сохраняем матрицу для текущей точки
+
+        // 2. Сдвигаем начало координат в мировую точку 'p'
+        m_painter->translate(p);
+
+        // 3. Компенсируем инверсию Y и убираем мировой масштаб для этого шага.
+        // Теперь (0,0) — это центр точки, ось X вправо, ось Y — вверх экрана.
+        m_painter->scale(1.0, -1.0);
+
+        // 4. Рисуем маркер (круг радиусом 2 пикселя)
+        // Так как масштаб сброшен в 1.0, размеры задаются строго в пикселях экрана
+        m_painter->drawEllipse(QPointF(0, 0), 2.0, 2.0);
+
+        // 5. Рисуем текст (черным или цветом 'color')
+        m_painter->setPen(color); 
         QString label = QString::number(i);
-        m_painter->drawText(p + QPointF(5, -5), label);
+        
+        // Смещение (5, -5) теперь работает в нормальных экранных координатах:
+        // +5 вправо, -5 вверх относительно маркера
+        m_painter->drawText(QPointF(5, -5), label);
+
+        m_painter->restore(); // Возвращаем мировую матрицу для следующей точки
     }
+
+    // 6. Восстанавливаем исходное состояние сцены
+    m_painter->restore();
 }
 
 void QPainterRenderer::drawEarMarker(const QPointF& position,
@@ -124,4 +178,16 @@ void QPainterRenderer::drawText(const QString& text, const QPointF& position,
     font.setPointSize(fontSize);
     m_painter->setFont(font);
     m_painter->drawText(position, text);
+}
+
+void QPainterRenderer::drawTextScreen(const QString &text, const QPointF &position, const QColor &color, int fontSize)
+{
+    if (!m_isActive) return;
+
+    m_painter->save();
+    m_painter->resetTransform(); // Сбрасываем мировую матрицу в экранные
+    drawTextScreen(text, position, color, fontSize);
+
+    m_painter->restore(); // Возвращаем мировую матрицу обратно
+
 }

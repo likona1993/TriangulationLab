@@ -37,37 +37,10 @@ void TriangulationWidget::paintEvent(QPaintEvent* /*event*/) {
     // Начинаем кадр
     m_renderer->beginFrame();
 
-    // Собираем все точки для вычисления bounding box
-    std::vector<QPointF> allPoints = m_polygonPoints;
-    if (m_showDebug && !m_debugPolygon.empty()) {
-        allPoints.insert(allPoints.end(), m_debugPolygon.begin(), m_debugPolygon.end());
-    }
-    if (!m_triangles.empty()) {
-        for (const auto& tri : m_triangles) {
-            allPoints.push_back(tri[0]);
-            allPoints.push_back(tri[1]);
-            allPoints.push_back(tri[2]);
-        }
-    }
-    if (!m_debugTriangles.empty()) {
-        for (const auto& tri : m_debugTriangles) {
-            allPoints.push_back(tri[0]);
-            allPoints.push_back(tri[1]);
-            allPoints.push_back(tri[2]);
-        }
-    }
-
-    QRectF bbox = getBoundingRect(allPoints);
-    if (bbox.isEmpty()) {
-        bbox = QRectF(0, 0, width(), height());
-    }
-
-    // Устанавливаем трансформацию
-    QRect viewport(0, 0, width(), height());
-    m_renderer->setTransform(bbox, viewport);
+    m_renderer->applyTransform();
 
     // Рисуем сетку (пока пусто)
-    m_renderer->drawGrid(bbox);
+    m_renderer->drawGrid(m_currentBBox);
 
     // 1. Отладочные треугольники (если режим отладки)
     if (m_showDebug && !m_debugTriangles.empty()) {
@@ -103,23 +76,8 @@ void TriangulationWidget::paintEvent(QPaintEvent* /*event*/) {
         .arg(m_currentStep + 1)
             .arg(m_totalSteps)
             .arg(m_facade->getDebugDescription());
-        // Рисуем текст поверх трансформации — сбрасываем в экранные координаты
-        // Просто вызываем drawText с позицией в экранных координатах, но наш drawText
-        // работает в мировых координатах. Чтобы нарисовать текст в экранных,
-        // можно временно сбросить трансформацию. Для этого в QPainterRenderer
-        // можно добавить отдельный метод, но пока мы просто нарисуем текст
-        // через обычный QPainter напрямую. Но чтобы не нарушать абстракцию,
-        // мы можем добавить метод drawTextScreen в IRenderer.
-        // Для простоты пока нарисуем через QPainter отдельно.
-        // Временно: используем QPainter напрямую (нарушаем абстракцию, но для прототипа сойдёт).
-        QPainter painter(this);
-        painter.setPen(Qt::white);
-        QFont font = painter.font();
-        font.setPointSize(12);
-        painter.setFont(font);
-        painter.drawText(10, 30, info);
-        painter.end();
-        // В будущем можно добавить метод в IRenderer: drawTextInScreenCoords
+
+        m_renderer->drawTextScreen(info, QPointF(10, 30));
     }
 
     m_renderer->endFrame();
@@ -131,8 +89,8 @@ void TriangulationWidget::paintEvent(QPaintEvent* /*event*/) {
 
 void TriangulationWidget::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        QPointF scenePos = mapToScene(event->pos());
-        m_facade->addPoint(scenePos);
+        QPointF worldPoint = m_renderer->screenToWorld(event->pos());
+        m_facade->addPoint(worldPoint);
     }
 }
 
@@ -140,6 +98,7 @@ void TriangulationWidget::keyPressEvent(QKeyEvent* event) {
     switch (event->key()) {
     case Qt::Key_Return:
     case Qt::Key_Enter:
+        updateWorldBounds();
         m_facade->closePolygon();
         break;
     case Qt::Key_Backspace:
@@ -177,6 +136,22 @@ void TriangulationWidget::keyPressEvent(QKeyEvent* event) {
     }
 }
 
+void TriangulationWidget::resizeEvent(QResizeEvent * event)
+{
+    // 1. Всегда вызываем базовый класс, чтобы Qt корректно обработал событие
+    QWidget::resizeEvent(event);
+
+    // 2. Если у нас еще нет точек (полигон пустой), центрировать нечего
+    if (m_polygonPoints.empty()) return;
+
+    // 3. Пересчитываем масштаб и сдвиг под новые размеры виджета.
+    // Внутри updateWorldBounds() вызовется m_renderer->resetView(bbox, rect())
+    updateWorldBounds();
+
+    // 4. Запрашиваем принудительную перерисовку виджета
+    update();
+}
+
 // ============================================================
 //  Слоты обновления из фасада
 // ============================================================
@@ -210,7 +185,39 @@ void TriangulationWidget::onDebugStepChanged(int currentStep, int totalSteps) {
 //  Вспомогательные методы
 // ============================================================
 
-QRectF TriangulationWidget::getBoundingRect(const std::vector<QPointF>& points) const {
+void TriangulationWidget::updateWorldBounds()
+{
+     // Собираем все точки для вычисления bounding box
+    std::vector<QPointF> allPoints = m_polygonPoints;
+    if (m_showDebug && !m_debugPolygon.empty()) {
+        allPoints.insert(allPoints.end(), m_debugPolygon.begin(), m_debugPolygon.end());
+    }
+    if (!m_triangles.empty()) {
+        for (const auto& tri : m_triangles) {
+            allPoints.push_back(tri[0]);
+            allPoints.push_back(tri[1]);
+            allPoints.push_back(tri[2]);
+        }
+    }
+    if (!m_debugTriangles.empty()) {
+        for (const auto& tri : m_debugTriangles) {
+            allPoints.push_back(tri[0]);
+            allPoints.push_back(tri[1]);
+            allPoints.push_back(tri[2]);
+        }
+    }
+
+    m_currentBBox = getBoundingRect(allPoints);
+    if (m_currentBBox.isEmpty()) {
+        m_currentBBox = QRectF(0, 0, width(), height());
+    }
+    
+    QRect viewport(0, 0, width(), height());
+    m_renderer->resetView(m_currentBBox, viewport);
+}
+
+QRectF TriangulationWidget::getBoundingRect(const std::vector<QPointF> &points) const
+{
     if (points.empty()) return QRectF(0, 0, width(), height());
     qreal minX = points[0].x(), maxX = points[0].x();
     qreal minY = points[0].y(), maxY = points[0].y();
@@ -223,12 +230,6 @@ QRectF TriangulationWidget::getBoundingRect(const std::vector<QPointF>& points) 
     qreal margin = 50;
     return QRectF(minX - margin, minY - margin,
                   maxX - minX + 2*margin, maxY - minY + 2*margin);
-}
-
-QPointF TriangulationWidget::mapToScene(const QPoint& screenPos) const {
-    // Пока просто инвертируем Y (так как в трансформации мы инвертируем Y)
-    // В будущем нужно будет учитывать масштаб и смещение.
-    return QPointF(screenPos.x(), height() - screenPos.y());
 }
 
 void TriangulationWidget::updateDebugData() {

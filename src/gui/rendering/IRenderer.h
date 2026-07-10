@@ -20,7 +20,12 @@ public:
     virtual void endFrame() = 0;
 
     // Настройка трансформации (мировые координаты -> экранные)
-    virtual void setTransform(const QRectF& worldRect, const QRect& viewport) = 0;
+    virtual void resetView(const QRectF& worldRect, const QRect& viewport) = 0;
+
+    virtual void applyTransform() = 0;
+
+    //перевод экранных координат в мировую систему координат
+    virtual QPointF screenToWorld(const QPointF& screenPosition) = 0;
 
     // Отрисовка примитивов
     virtual void drawPolygon(const std::vector<QPointF>& points,
@@ -46,4 +51,14 @@ public:
     // Информационные надписи
     virtual void drawText(const QString& text, const QPointF& position,
                           const QColor& color = Qt::white, int fontSize = 12) = 0;
+    
+    //Отрисовка текста в экранных координатах
+    virtual void drawTextScreen(const QString& text, const QPointF& position,
+                          const QColor& color = Qt::white, int fontSize = 12) = 0;
+
+    //масштаб
+    qreal m_scale = 1.0;
+    //сдвиг
+    QPointF m_offset = QPointF(0.0, 0.0); 
+    
 };

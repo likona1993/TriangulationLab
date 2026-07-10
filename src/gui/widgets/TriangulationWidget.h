@@ -27,6 +27,7 @@ protected:
     void paintEvent(QPaintEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
 
 private slots:
     void onPolygonChanged(const std::vector<QPointF>& points);
@@ -41,6 +42,7 @@ private:
     // === Кэш данных для рендеринга ===
     std::vector<QPointF> m_polygonPoints;
     std::vector<std::array<QPointF, 3>> m_triangles;
+    QRectF m_currentBBox;
 
     std::vector<QPointF> m_debugPolygon;
     std::vector<std::array<QPointF, 3>> m_debugTriangles;
@@ -49,7 +51,7 @@ private:
     bool m_showDebug = false;
 
     // === Вспомогательные методы ===
+    void updateWorldBounds();
     QRectF getBoundingRect(const std::vector<QPointF>& points) const;
-    QPointF mapToScene(const QPoint& screenPos) const;
     void updateDebugData();
 };
