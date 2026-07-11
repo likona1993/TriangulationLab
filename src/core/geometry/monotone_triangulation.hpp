@@ -1,5 +1,6 @@
 #pragma once
 
+#include "geometry/triangulation_types.h"
 #include "monotone_triangulation.h"
 #include "utils/geometry_predicates.h"
 
@@ -24,9 +25,7 @@ bool EdgeCmp<T>::operator()(const Edge &a, const Edge &b) const {
   // чтобы set не считал рёбра эквивалентными.
   // Для этого можно сравнить отношение dy/dx или просто использовать индексы.
   // Используем индексы вершин для детерминированного порядка.
-  if (a.from != b.from)
-    return a.from < b.from;
-  return a.to < b.to;
+  return EdgeLess{}(a, b);
 }
 
 template <typename T>
@@ -71,10 +70,9 @@ MonotoneTriangulation<T>::triangulate(const Polygon &polygon) {
             });
 
   T currentY = vertices[0].point.y;
-  EdgeCmp comp(&poly, &currentY);
+  EdgeCmp<T> comp(&poly, &currentY);
   StatusSet status(comp);
-  HelperMap helpers(
-      comp); // тоже используем тот же компаратор для согласованности
+  HelperMap helpers;
 
   // Вектор для хранения добавленных диагоналей (для истории)
   std::vector<std::pair<Point2<T>, Point2<T>>> diagonals;
@@ -129,74 +127,41 @@ MonotoneTriangulation<T>::classifyVertex(const Polygon &poly, size_t i) const {
   bool convex = isConvex(prev, curr, next, EPSILON<T>);
 
   // Сравнение y-координат с учётом EPSILON
-  bool prevBelow = prev.y < curr.y - EPSILON<T>;
-  bool prevAbove = prev.y > curr.y + EPSILON<T>;
-  bool nextBelow = next.y < curr.y - EPSILON<T>;
-  bool nextAbove = next.y > curr.y + EPSILON<T>;
+  bool prevBelow = isAbove(curr, prev);
+  bool nextBelow = isAbove(curr, next);
 
-  // Если оба соседа ниже -> START (локальный минимум)
-  if (prevBelow && nextBelow) {
-    return VertexType::START;
-  }
+  if (prevBelow && nextBelow) // локальный максимум
+    return convex ? VertexType::START : VertexType::SPLIT;
 
-  // Если оба соседа выше -> END (локальный максимум)
-  if (prevAbove && nextAbove) {
-    return VertexType::END;
-  }
+  if (!prevBelow && !nextBelow) // локальный минимум
+    return convex ? VertexType::END : VertexType::MERGE;
 
-  // Если один выше, один ниже -> REGULAR
-  if ((prevAbove && nextBelow) || (prevBelow && nextAbove)) {
-    return VertexType::REGULAR;
-  }
-
-  // Остаются случаи, когда один или оба соседа имеют такую же y
-  // (коллинеарность) Здесь нужна более тонкая обработка, но мы предполагаем,
-  // что предварительно удалили коллинеарные точки. Если они остались, то
-  // классификация зависит от того, является ли вершина выпуклой или вогнутой, и
-  // от расположения соседей. Обычно в литературе такие случаи обрабатывают с
-  // помощью сравнения x при равной y. Для простоты можно считать, что если y
-  // равны, то мы рассматриваем их как "выше" или "ниже" в зависимости от x (но
-  // это сложно). Поэтому рекомендую перед запуском алгоритма гарантировать, что
-  // никакие три последовательные точки не коллинеарны (у вас есть
-  // removeCollinearPoints).
-
-  // Если не удалось определить, используем выпуклость и дополнительный анализ.
-  // Например, если вершина выпуклая и один сосед выше, другой на той же y, то
-  // это может быть REGULAR. Но для надёжности лучше обработать как REGULAR.
-
-  return VertexType::REGULAR;
+  return VertexType::REGULAR; // один сосед выше, другой ниже
 }
 
 template <typename T>
 typename MonotoneTriangulation<T>::StatusSet::iterator
-MonotoneTriangulation<T>::findLeftEdge(StatusSet &status, VertexIndex vi,
-                                       T currentY) {
+MonotoneTriangulation<T>::findLeftEdge(const Polygon &poly, StatusSet &status,
+                                       VertexIndex vi, T currentY) {
   if (status.empty())
     return status.end();
 
-  const Point2<T> &v = (*status.key_comp().poly)[vi];
-  T xV = v.x; // x-координата вершины
+  const Point2<T> &v = poly[vi];
 
   // Простой и надёжный способ – линейный поиск, но статус может содержать
   // O(n) рёбер, и это даст O(n^2) в худшем случае. Для начала можно так, но
   // потом оптимизировать. Предлагаю пока использовать линейный поиск, а позже
   // заменить на сбалансированное дерево с возможностью поиска по x. TODO
 
-  auto it = status.begin();
   auto best = status.end();
-  T bestX = -std::numeric_limits<T>::infinity();
-
-  /*while (it != status.end()) {
-    // Вычисляем x пересечения ребра с текущей горизонталью
-    T xEdge =
-        computeXIntersection((*poly)[it->from], (*poly)[it->to], currentY);
-    if (xEdge < xV - EPSILON<T> && xEdge > bestX) {
-      bestX = xEdge;
-      best = it;
-    }
-    ++it;
-  }*/
-  return best;
+  for (auto it = status.begin(); it != status.end(); ++it) {
+    const T xEdge =
+        computeXIntersection(poly[it->from], poly[it->to], currentY);
+    if (xEdge > v.x + EPSILON<T>)
+      break;   // дальше все рёбра ещё правее — статус отсортирован
+    best = it; // это ребро левее v, пока оно и есть «ближайшее слева»
+  }
+  return best; // end(), если слева ничего нет
 }
 
 template <typename T>

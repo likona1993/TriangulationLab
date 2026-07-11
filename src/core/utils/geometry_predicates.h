@@ -112,11 +112,12 @@ T computeXIntersection(const Point2<T> &p1, const Point2<T> &p2, T currentY) {
 
   T dy = p2.y - p1.y;
 
-  // Если ребро горизонтально (что не должно происходить после очистки)
+  // Ребро горизонтально: при лексикографическом sweep-порядке оно направлено
+  // слева направо и «проходит» через текущую вершину. Возвращаем левый конец —
+  // так ребро гарантированно попадает в кандидаты findLeftEdge
+  // (условие xEdge <= v.x + EPSILON).
   if (std::abs(dy) <= EPSILON<T>) {
-    // Возвращаем среднюю x как разумное приближение,
-    // но в алгоритме такие рёбра не должны появляться в статусе.
-    return (p1.x + p2.x) / 2;
+    return std::min(p1.x, p2.x);
   }
 
   // Вычисляем параметр t ∈ [0,1] для интерполяции
@@ -130,5 +131,15 @@ T computeXIntersection(const Point2<T> &p1, const Point2<T> &p2, T currentY) {
 
   return p1.x + t * (p2.x - p1.x);
 };
+
+// ============================================================
+// a выше b в смысле sweep line
+// ============================================================
+template <typename T>
+static bool isAbove(const Point2<T> &a, const Point2<T> &b) {
+  if (std::abs(a.y - b.y) > EPSILON<T>)
+    return a.y > b.y;
+  return a.x < b.x;
+}
 
 } // namespace geo

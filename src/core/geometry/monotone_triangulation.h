@@ -29,7 +29,7 @@ public:
   using StatusSet = std::set<Edge, EdgeCmp<T>>;
 
   // Словарь helper: для каждого ребра храним индекс вершины-помощника
-  using HelperMap = std::map<Edge, VertexIndex, EdgeCmp<T>>;
+  using HelperMap = std::map<Edge, VertexIndex, EdgeLess>;
 
   TriangulationResult<T> triangulate(const Polygon &polygon);
 
@@ -44,7 +44,8 @@ private:
 
   // Найти ребро в статусе, расположенное непосредственно слева от вершины с
   // индексом vi
-  typename StatusSet::iterator findLeftEdge(StatusSet &status, VertexIndex vi,
+  typename StatusSet::iterator findLeftEdge(const Polygon &poly,
+                                            StatusSet &status, VertexIndex vi,
                                             T currentY);
 
   // Вспомогательная функция для получения ребра, выходящего из вершины vi (vi
