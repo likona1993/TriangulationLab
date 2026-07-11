@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-TriangulationLab is a Qt6/Qt5 desktop app for visualizing 2D polygon triangulation algorithms (currently ear clipping; monotone-polygon triangulation is stubbed but unimplemented). It's split into a template-based, Qt-independent core geometry library and a Qt Widgets GUI that drives it through a facade layer.
+TriangulationLab is a Qt6/Qt5 desktop app for visualizing 2D polygon triangulation algorithms (currently ear clipping; monotone-polygon triangulation is in progress and not yet functional). It's split into a template-based, Qt-independent core geometry library and a Qt Widgets GUI that drives it through a facade layer.
 
 ## Build
 
@@ -42,7 +42,7 @@ ctest --test-dir build --output-on-failure
 
 - `geometry/types.h(.hpp)` — `Point2<T>`, `Polygon2<T>` (alias for `vector<Point2<T>>`), `Triangle2<T>`, and polygon utilities (`signedArea2D`, `ensureCCW`, `removeCollinearPoints`).
 - `geometry/ear_clipping.h(.hpp)` — `EarClipping<T>::triangulate()`. On failure to find an ear it retries once with a 10x-relaxed epsilon before giving up. Every ear cut is recorded as a `DebugStep<T>` (polygon state before the cut, the cut triangle, the ear index) in `m_history`, which is what powers the GUI's step-through debugger.
-- `geometry/monotone_triangulation.h` — currently an empty stub; a second triangulation algorithm is planned here.
+- `geometry/monotone_triangulation.h(.hpp)` — `MonotoneTriangulation<T>`, a second (sweep-line) triangulation algorithm, in progress. `triangulate()` sorts vertices and dispatches each to a `handle*` method by `classifyVertex()`'s result (`START`/`END`/`SPLIT`/`MERGE`/`REGULAR`); only `handleStart` is implemented, `handleEnd`/`handleSplit`/`handleMerge`/`handleRegular` and `findLeftEdge` are still unimplemented stubs, and `triangulate()` doesn't yet populate `TriangulationResult<T>` or debug history. Note for this `.h`/`.hpp` pair specifically: the `.h` must `#include` the `.hpp` at its end like the other core headers do — this was missing for a while, so the definitions in `.hpp` were never compiled anywhere and silently diverged from their declarations. The `.hpp` also needs its own `#pragma once` (`ear_clipping.hpp` has one too) — without it, an editor opening the `.hpp` directly chokes on the `.hpp` → `.h` → `.hpp` include cycle when building its preamble, even though the cycle is harmless in a real build thanks to the `.h`'s guard.
 
 **`src/gui`** — the Qt application (target `TriangulationLab`, linked against `core`). Core algorithms are never called directly from widgets; everything goes through a facade layer that also does the `QPointF` ⇄ `geo::Point2<double>` conversion:
 

@@ -45,35 +45,7 @@ private:
   // Найти ребро в статусе, расположенное непосредственно слева от вершины с
   // индексом vi
   typename StatusSet::iterator findLeftEdge(StatusSet &status, VertexIndex vi,
-                                            T currentY) {
-
-    if (status.empty())
-      return status.end();
-
-    const Point2<T> &v = (*status.key_comp().poly)[vi];
-    T xV = v.x; // x-координата вершины
-
-    // Простой и надёжный способ – линейный поиск, но статус может содержать
-    // O(n) рёбер, и это даст O(n^2) в худшем случае. Для начала можно так, но
-    // потом оптимизировать. Предлагаю пока использовать линейный поиск, а позже
-    // заменить на сбалансированное дерево с возможностью поиска по x. TODO
-
-    auto it = status.begin();
-    auto best = status.end();
-    T bestX = -std::numeric_limits<T>::infinity();
-
-    /*while (it != status.end()) {
-      // Вычисляем x пересечения ребра с текущей горизонталью
-      T xEdge =
-          computeXIntersection((*poly)[it->from], (*poly)[it->to], currentY);
-      if (xEdge < xV - EPSILON<T> && xEdge > bestX) {
-        bestX = xEdge;
-        best = it;
-      }
-      ++it;
-    }*/
-    return best;
-  }
+                                            T currentY);
 
   // Вспомогательная функция для получения ребра, выходящего из вершины vi (vi
   // -> vi+1)
