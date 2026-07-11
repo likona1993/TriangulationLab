@@ -1,6 +1,6 @@
 #include "monotone_triangulation.h"
 
-#include "geometry_predicates.h"
+#include "utils/geometry_predicates.h"
 
 namespace geo {
 
@@ -11,11 +11,11 @@ bool EdgeCmp<T>::operator()(const Edge &a, const Edge &b) const {
   // TODO - необходимо обработать случай, когда ребро параллельно y(либо не
   // пересекает, либо совпадает)
 
-  T xA = computeXIntersection(poly[a.from], poly[a.to], currentY);
-  T xB = computeXIntersection(poly[b.from], poly[b.to], currentY);
+  T xA = computeXIntersection((*poly)[a.from], (*poly)[a.to], *currentY);
+  T xB = computeXIntersection((*poly)[b.from], (*poly)[b.to], *currentY);
 
   // Сравниваем x-координаты с учётом EPSILON
-  if (std::abs(xA - xB) > EPSILON<T>()) {
+  if (std::abs(xA - xB) > EPSILON<T>) {
     return xA < xB;
   }
 
@@ -32,16 +32,21 @@ template <typename T>
 TriangulationResult<T>
 MonotoneTriangulation<T>::triangulate(const Polygon &polygon) {
   // TODO  - дублирование кода (аналигичный блок в EarClipping)
-  if (input.size() < 3) {
+  TriangulationResult<T> result;
+
+  if (polygon.size() < 3) {
     result.error_message = "Polygon must have at least 3 vertices";
     return result;
   }
 
-  if (!isSimplePolygon(input, eps)) {
+  const T eps = EPSILON<T>;
+  if (!isSimplePolygon(polygon, eps)) {
     result.error_message = "Polygon is self-intersecting";
     return result;
   }
   // конец дублированного блока
+
+  Polygon poly = polygon;
 
   // Создаём список вершин с индексами для сортировки
   struct VertexEntry {
@@ -58,7 +63,7 @@ MonotoneTriangulation<T>::triangulate(const Polygon &polygon) {
   // Сортируем по убыванию y, при равенстве y – по возрастанию x
   std::sort(vertices.begin(), vertices.end(),
             [](const VertexEntry &a, const VertexEntry &b) {
-              if (std::abs(a.point.y - b.point.y) > EPSILON<T>()) {
+              if (std::abs(a.point.y - b.point.y) > EPSILON<T>) {
                 return a.point.y > b.point.y; // убывание y
               }
               return a.point.x < b.point.x; // возрастание x
@@ -120,13 +125,13 @@ MonotoneTriangulation<T>::classifyVertex(const Polygon &poly, size_t i) const {
   const Point2<T> &next = poly[(i + 1) % n];
 
   // Определяем, является ли вершина выпуклой (угол < 180 градусов)
-  bool convex = isConvex(prev, curr, next);
+  bool convex = isConvex(prev, curr, next, EPSILON<T>);
 
   // Сравнение y-координат с учётом EPSILON
-  bool prevBelow = prev.y < curr.y - EPSILON<T>();
-  bool prevAbove = prev.y > curr.y + EPSILON<T>();
-  bool nextBelow = next.y < curr.y - EPSILON<T>();
-  bool nextAbove = next.y > curr.y + EPSILON<T>();
+  bool prevBelow = prev.y < curr.y - EPSILON<T>;
+  bool prevAbove = prev.y > curr.y + EPSILON<T>;
+  bool nextBelow = next.y < curr.y - EPSILON<T>;
+  bool nextAbove = next.y > curr.y + EPSILON<T>;
 
   // Если оба соседа ниже -> START (локальный минимум)
   if (prevBelow && nextBelow) {
@@ -174,9 +179,11 @@ Edge MonotoneTriangulation<T>::getPrevEdge(const Polygon &poly,
 }
 
 template <typename T>
-void MonotoneTriangulation<T>::handleStart(
-    VertexIndex vi, Polygon &poly, StatusSet &status, HelperMap &helpers,
-    std::vector<std::pair<Point2<T>, Point2<T>>> &diagonals) {
+void MonotoneTriangulation<T>::handleStart(VertexIndex vi, Polygon &poly,
+                                           StatusSet &status,
+                                           HelperMap &helpers,
+                                           DiagonalList &diagonals) {
+  (void)diagonals;
   // Добавляем ребро (vi, vi+1) в статус, helper = vi
   Edge e = getNextEdge(poly, vi);
   status.insert(e);

@@ -113,7 +113,7 @@ T computeXIntersection(const Point2<T> &p1, const Point2<T> &p2, T currentY) {
   T dy = p2.y - p1.y;
 
   // Если ребро горизонтально (что не должно происходить после очистки)
-  if (std::abs(dy) <= EPSILON<T>()) {
+  if (std::abs(dy) <= EPSILON<T>) {
     // Возвращаем среднюю x как разумное приближение,
     // но в алгоритме такие рёбра не должны появляться в статусе.
     return (p1.x + p2.x) / 2;

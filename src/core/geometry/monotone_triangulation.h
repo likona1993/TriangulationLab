@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <set>
 #include <vector>
 
 #include "triangulation_types.h"
@@ -32,7 +33,7 @@ public:
 
   TriangulationResult<T> triangulate(const Polygon &polygon);
 
-  const std::vector<DebugStep> &getHistory() const { return history; }
+  const std::vector<DebugStep<T>> &getHistory() const { return history; }
 
 private:
   // Вспомогательные функции
@@ -65,7 +66,7 @@ private:
       // Вычисляем x пересечения ребра с текущей горизонталью
       T xEdge =
           computeXIntersection((*poly)[it->from], (*poly)[it->to], currentY);
-      if (xEdge < xV - EPSILON<T>() && xEdge > bestX) {
+      if (xEdge < xV - EPSILON<T> && xEdge > bestX) {
         bestX = xEdge;
         best = it;
       }
@@ -82,21 +83,28 @@ private:
   // -> vi)
   Edge getPrevEdge(const Polygon &poly, VertexIndex vi);
 
+  using DiagonalList = std::vector<std::pair<Point2<T>, Point2<T>>>;
+
   void handleStart(VertexIndex vi, Polygon &poly, StatusSet &status,
-                   HelperMap &helpers);
+                   HelperMap &helpers, DiagonalList &diagonals);
 
   void handleEnd(VertexIndex vi, Polygon &poly, StatusSet &status,
-                 HelperMap &helpers);
+                 HelperMap &helpers, DiagonalList &diagonals);
 
   void handleSplit(VertexIndex vi, Polygon &poly, StatusSet &status,
-                   HelperMap &helpers);
+                   HelperMap &helpers, DiagonalList &diagonals);
 
   void handleMerge(VertexIndex vi, Polygon &poly, StatusSet &status,
-                   HelperMap &helpers);
+                   HelperMap &helpers, DiagonalList &diagonals);
 
   void handleRegular(VertexIndex vi, Polygon &poly, StatusSet &status,
-                     HelperMap &helpers);
+                     HelperMap &helpers, DiagonalList &diagonals);
 
-  std::vector<DebugStep> history;
+  std::vector<DebugStep<T>> history;
 };
 } // namespace geo
+
+// ============================================================
+//  Подключение реализаций (шаблонных)
+// ============================================================
+#include "monotone_triangulation.hpp"
