@@ -56,22 +56,45 @@ private:
   // -> vi)
   Edge getPrevEdge(const Polygon &poly, VertexIndex vi);
 
-  using DiagonalList = std::vector<std::pair<Point2<T>, Point2<T>>>;
+  // Диагональ хранится как пара индексов вершин исходного полигона.
+  using Diagonal = std::pair<VertexIndex, VertexIndex>;
+  using DiagonalList = std::vector<Diagonal>;
+  using VertexTypes = std::vector<VertexType>;
 
-  void handleStart(VertexIndex vi, Polygon &poly, StatusSet &status,
-                   HelperMap &helpers, DiagonalList &diagonals);
+  // Общий контекст sweep-обхода, чтобы не таскать по пять указателей в
+  // каждый handle*.
+  struct SweepCtx {
+    const Polygon *poly;      // геометрия
+    const VertexTypes *types; // типы вершин (для проверки "helper — merge?")
+    StatusSet *status;        // активные нисходящие рёбра
+    HelperMap *helpers;       // helper для каждого активного ребра
+    DiagonalList *diagonals;  // накопитель результата
+    T *currentY;              // sweep line; на неё же смотрит EdgeCmp
+  };
 
-  void handleEnd(VertexIndex vi, Polygon &poly, StatusSet &status,
-                 HelperMap &helpers, DiagonalList &diagonals);
+  // Погасить долг: если helper ребра e — merge-вершина, провести к ней
+  // диагональ.
+  // Вызывается ВЕЗДЕ, где мы «трогаем» helper.
+  void tryCloseMerge(VertexIndex vi, const Edge &e, SweepCtx &ctx);
 
-  void handleSplit(VertexIndex vi, Polygon &poly, StatusSet &status,
-                   HelperMap &helpers, DiagonalList &diagonals);
+  // Своё нисходящее ребро закончилось в vi: погасить долг и убрать из статуса.
+  void closeEdge(VertexIndex vi, SweepCtx &ctx);
 
-  void handleMerge(VertexIndex vi, Polygon &poly, StatusSet &status,
-                   HelperMap &helpers, DiagonalList &diagonals);
+  // Своё нисходящее ребро начинается в vi: вставить, helper = vi.
+  void openEdge(VertexIndex vi, SweepCtx &ctx);
 
-  void handleRegular(VertexIndex vi, Polygon &poly, StatusSet &status,
-                     HelperMap &helpers, DiagonalList &diagonals);
+  // Обновить helper ЧУЖОГО ребра слева: погасить его долг и стать новым
+  // helper'ом. Возвращает false, если слева ничего нет (вырожденные данные).
+  bool updateLeftHelper(VertexIndex vi, SweepCtx &ctx);
+
+  bool handleStart(VertexIndex vi, SweepCtx &ctx);
+  bool handleEnd(VertexIndex vi, SweepCtx &ctx);
+  bool handleSplit(VertexIndex vi, SweepCtx &ctx);
+  bool handleMerge(VertexIndex vi, SweepCtx &ctx);
+  bool handleRegular(VertexIndex vi, SweepCtx &ctx);
+
+  bool makeMonotone(const Polygon &poly, const std::vector<VertexType> &types,
+                    std::vector<Diagonal> &diagonals);
 
   std::vector<DebugStep<T>> history;
 };

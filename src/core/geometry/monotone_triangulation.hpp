@@ -1,5 +1,9 @@
 #pragma once
 
+#include <algorithm>
+#include <cassert>
+#include <numeric>
+
 #include "geometry/triangulation_types.h"
 #include "monotone_triangulation.h"
 #include "utils/geometry_predicates.h"
@@ -48,68 +52,95 @@ MonotoneTriangulation<T>::triangulate(const Polygon &polygon) {
 
   Polygon poly = polygon;
 
-  // Создаём список вершин с индексами для сортировки
-  struct VertexEntry {
-    VertexIndex index;
-    Point2<T> point;
-  };
-
-  std::vector<VertexEntry> vertices;
-  vertices.reserve(poly.size());
-  for (size_t i = 0; i < poly.size(); ++i) {
-    vertices.push_back({i, poly[i]});
-  }
-
-  // Сортируем по убыванию y, при равенстве y – по возрастанию x
-  std::sort(vertices.begin(), vertices.end(),
-            [](const VertexEntry &a, const VertexEntry &b) {
-              if (std::abs(a.point.y - b.point.y) > EPSILON<T>) {
-                return a.point.y > b.point.y; // убывание y
-              }
-              return a.point.x < b.point.x; // возрастание x
-            });
-
-  T currentY = vertices[0].point.y;
-  EdgeCmp<T> comp(&poly, &currentY);
-  StatusSet status(comp);
-  HelperMap helpers;
-
   // Вектор для хранения добавленных диагоналей (для истории)
-  std::vector<std::pair<Point2<T>, Point2<T>>> diagonals;
+  DiagonalList diagonals;
 
-  // Проходим по вершинам в порядке убывания y
-  for (const auto &entry : vertices) {
-    size_t vi = entry.index;
-    const Point2<T> &v = poly[vi];
-    currentY = v.y; // обновляем текущую y для компаратора
+  // классификация вершин
+  VertexTypes types(poly.size());
+  for (size_t i = 0; i < poly.size(); ++i)
+    types[i] = classifyVertex(poly, i);
 
-    // Определяем тип вершины
-    VertexType type = classifyVertex(poly, vi);
+  bool ok = makeMonotone(poly, types, diagonals);
 
-    // Обрабатываем в зависимости от типа
-    switch (type) {
-    case VertexType::START:
-      handleStart(vi, poly, status, helpers, diagonals);
+  return TriangulationResult<T>();
+}
+
+template <typename T>
+bool MonotoneTriangulation<T>::makeMonotone(
+    const Polygon &poly, const std::vector<VertexType> &types,
+    std::vector<Diagonal> &diagonals) {
+
+  const size_t n = poly.size();
+  if (n < 3)
+    return false;
+
+  // ---------------------------------------------------------------
+  // 1. Порядок обработки вершин: y убывает, при равной y — x возрастает.
+  //    ВАЖНО: тот же предикат isAbove, что и в classifyVertex.
+  //    Иначе классификация и порядок обработки противоречат друг другу.
+  // ---------------------------------------------------------------
+  std::vector<VertexIndex> order(n);
+  std::iota(order.begin(), order.end(), VertexIndex{0});
+
+  std::sort(order.begin(), order.end(), [&poly](VertexIndex a, VertexIndex b) {
+    return isAbove(poly[a], poly[b]);
+  });
+
+  // ---------------------------------------------------------------
+  // 2. Структуры sweep line.
+  //    currentY — единственный экземпляр: на него смотрит и EdgeCmp
+  //    (через указатель), и findLeftEdge (через ctx).
+  // ---------------------------------------------------------------
+  T currentY = poly[order.front()].y;
+
+  EdgeCmp<T> comp(&poly, &currentY); // явный <T>: без CTAD
+  StatusSet status(comp);
+  HelperMap helpers; // компаратор EdgeLess — НЕ зависит от sweep line
+
+  SweepCtx ctx{&poly, &types, &status, &helpers, &diagonals, &currentY};
+
+  // ---------------------------------------------------------------
+  // 3. Заметание сверху вниз
+  // ---------------------------------------------------------------
+  for (VertexIndex vi : order) {
+
+    // Обновляем sweep line ДО любых операций со статусом:
+    // status.erase() ищет ребро бинарным поиском через EdgeCmp,
+    // а тот сравнивает рёбра по x пересечения с currentY.
+    *ctx.currentY = poly[vi].y;
+
+    bool ok = true;
+    switch (types[vi]) {
+    case START:
+      ok = handleStart(vi, ctx);
       break;
-    case VertexType::END:
-      handleEnd(vi, poly, status, helpers, diagonals);
+    case END:
+      ok = handleEnd(vi, ctx);
       break;
-    case VertexType::SPLIT:
-      handleSplit(vi, poly, status, helpers, diagonals);
+    case SPLIT:
+      ok = handleSplit(vi, ctx);
       break;
-    case VertexType::MERGE:
-      handleMerge(vi, poly, status, helpers, diagonals);
+    case MERGE:
+      ok = handleMerge(vi, ctx);
       break;
-    case VertexType::REGULAR:
-      handleRegular(vi, poly, status, helpers, diagonals);
+    case REGULAR:
+      ok = handleRegular(vi, ctx);
       break;
     }
 
-    // Записываем шаг отладки (будем заполнять позже)
-    // ...
+    if (!ok)
+      return false; // findLeftEdge не нашёл ребро слева — вырожденные данные
+
+    // TODO: history.push_back(...) — снимок status/helpers/diagonals
   }
 
-  return TriangulationResult<T>();
+  // ---------------------------------------------------------------
+  // 4. Инварианты: каждое нисходящее ребро вставлено и удалено ровно раз.
+  // ---------------------------------------------------------------
+  assert(status.empty() && "статус не опустел: ошибка в классификации вершин");
+  assert(helpers.empty() && "helpers не опустел: забыт helpers.erase()");
+
+  return true;
 }
 
 template <typename T>
@@ -177,15 +208,93 @@ Edge MonotoneTriangulation<T>::getPrevEdge(const Polygon &poly,
 }
 
 template <typename T>
-void MonotoneTriangulation<T>::handleStart(VertexIndex vi, Polygon &poly,
-                                           StatusSet &status,
-                                           HelperMap &helpers,
-                                           DiagonalList &diagonals) {
-  (void)diagonals;
-  // Добавляем ребро (vi, vi+1) в статус, helper = vi
-  Edge e = getNextEdge(poly, vi);
-  status.insert(e);
-  helpers[e] = vi;
+void MonotoneTriangulation<T>::tryCloseMerge(VertexIndex vi, const Edge &e,
+                                             SweepCtx &ctx) {
+  auto it = ctx.helpers->find(e);
+  if (it == ctx.helpers->end())
+    return; // не должно случаться
+  if ((*ctx.types)[it->second] == MERGE)
+    ctx.diagonals->push_back({vi, it->second});
+}
+
+template <typename T>
+void MonotoneTriangulation<T>::closeEdge(VertexIndex vi, SweepCtx &ctx) {
+  Edge e = getPrevEdge(*ctx.poly, vi);
+  tryCloseMerge(vi, e, ctx);
+  ctx.status->erase(e);
+  ctx.helpers->erase(e); // ОБЯЗАТЕЛЬНО, иначе мусор
+}
+
+template <typename T>
+void MonotoneTriangulation<T>::openEdge(VertexIndex vi, SweepCtx &ctx) {
+  Edge e = getNextEdge(*ctx.poly, vi);
+  ctx.status->insert(e);
+  (*ctx.helpers)[e] = vi;
+}
+
+template <typename T>
+bool MonotoneTriangulation<T>::updateLeftHelper(VertexIndex vi, SweepCtx &ctx) {
+  auto ej = findLeftEdge(*ctx.poly, *ctx.status, vi, *ctx.currentY);
+  if (ej == ctx.status->end())
+    return false;
+  tryCloseMerge(vi, *ej, ctx);
+  (*ctx.helpers)[*ej] = vi;
+  return true;
+}
+
+// Оба соседа ниже, выпуклая. Открывается новый интервал.
+template <typename T>
+bool MonotoneTriangulation<T>::handleStart(VertexIndex vi, SweepCtx &ctx) {
+  openEdge(vi, ctx);
+  return true;
+}
+
+// Оба соседа выше, выпуклая. Интервал закрывается.
+template <typename T>
+bool MonotoneTriangulation<T>::handleEnd(VertexIndex vi, SweepCtx &ctx) {
+  closeEdge(vi, ctx);
+  return true;
+}
+
+// Оба соседа ниже, рефлексная. Интервал раздваивается.
+// Единственный тип, проводящий диагональ БЕЗУСЛОВНО.
+template <typename T>
+bool MonotoneTriangulation<T>::handleSplit(VertexIndex vi, SweepCtx &ctx) {
+  auto ej = findLeftEdge(*ctx.poly, *ctx.status, vi, *ctx.currentY);
+  if (ej == ctx.status->end())
+    return false; // слева обязано быть ребро
+
+  ctx.diagonals->push_back({vi, ctx.helpers->at(*ej)}); // ← безусловно
+  (*ctx.helpers)[*ej] = vi;
+
+  openEdge(vi, ctx); // своя новая граница
+  return true;
+}
+
+// Оба соседа выше, рефлексная. Интервалы сливаются.
+// Зеркало SPLIT, но диагональ вниз провести НЕЛЬЗЯ — партнёр ещё не известен.
+template <typename T>
+bool MonotoneTriangulation<T>::handleMerge(VertexIndex vi, SweepCtx &ctx) {
+  closeEdge(vi, ctx);               // правая часть закрылась
+  return updateLeftHelper(vi, ctx); // vi повисает как ДОЛГ
+}
+
+// Один сосед выше, другой ниже. Интервал продолжается.
+template <typename T>
+bool MonotoneTriangulation<T>::handleRegular(VertexIndex vi, SweepCtx &ctx) {
+  const Polygon &poly = *ctx.poly;
+  const size_t n = poly.size();
+  const Point2<T> &prev = poly[(vi + n - 1) % n];
+
+  // prev выше => цепь спускается => внутренность справа => ЛЕВАЯ цепь
+  if (isAbove(prev, poly[vi])) {
+    closeEdge(vi, ctx); // эстафета: старое ребро ушло,
+    openEdge(vi, ctx);  //           новое пришло
+    return true;
+  }
+
+  // ПРАВАЯ цепь: своих нисходящих рёбер нет, только чужой helper слева
+  return updateLeftHelper(vi, ctx);
 }
 
 } // namespace geo
