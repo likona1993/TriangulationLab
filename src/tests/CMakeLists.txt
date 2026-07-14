@@ -11,6 +11,8 @@ FetchContent_MakeAvailable(googletest)
 add_executable(test_core
     test_types.cpp
     test_ear_clipping.cpp
+    test_geometry_predicates.cpp
+    test_monotone_triangulation.cpp
 )
 
 # Линкуем с целями GTest
