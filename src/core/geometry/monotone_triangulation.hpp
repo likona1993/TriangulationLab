@@ -6,6 +6,7 @@
 
 #include "geometry/triangulation_types.h"
 #include "monotone_triangulation.h"
+#include "utils/assert.h"
 #include "utils/geometry_predicates.h"
 
 namespace geo {
@@ -60,9 +61,17 @@ MonotoneTriangulation<T>::triangulate(const Polygon &polygon) {
   for (size_t i = 0; i < poly.size(); ++i)
     types[i] = classifyVertex(poly, i);
 
-  bool ok = makeMonotone(poly, types, diagonals);
+  if (!makeMonotone(poly, types, diagonals)) {
+    result.error_message = "Failed to decompose polygon into monotone pieces";
+    return result;
+  }
 
-  return TriangulationResult<T>();
+  auto pieces = splitIntoMonotone(poly, diagonals);
+  for (const auto &piece : pieces)
+    GEO_ASSERT_INVARIANT(isMonotonePiece(poly, piece),
+                         "фаза 1 оставила SPLIT/MERGE — баг в makeMonotone");
+
+  return result;
 }
 
 template <typename T>
@@ -295,6 +304,152 @@ bool MonotoneTriangulation<T>::handleRegular(VertexIndex vi, SweepCtx &ctx) {
 
   // ПРАВАЯ цепь: своих нисходящих рёбер нет, только чужой helper слева
   return updateLeftHelper(vi, ctx);
+}
+
+template <typename T>
+std::vector<typename MonotoneTriangulation<T>::MonotonePiece>
+MonotoneTriangulation<T>::splitIntoMonotone(
+    const Polygon &poly, const std::vector<Diagonal> &diagonals) const {
+
+  const size_t n = poly.size();
+
+  // Диагоналей нет => полигон уже y-монотонен, разрезать нечего.
+  // (Общий код тоже отработает верно, это просто короткий путь.)
+  if (diagonals.empty()) {
+    MonotonePiece whole(n);
+    std::iota(whole.begin(), whole.end(), VertexIndex{0});
+    return {std::move(whole)};
+  }
+
+  // ---------------------------------------------------------------
+  // 1. Планарный граф: рёбра границы + диагонали, каждое — в обе стороны.
+  //    Куски = внутренние грани этого графа.
+  // ---------------------------------------------------------------
+  std::vector<std::vector<VertexIndex>> adj(n);
+  for (VertexIndex i = 0; i < n; ++i) {
+    adj[i].push_back((i + 1) % n);
+    adj[i].push_back((i + n - 1) % n);
+  }
+  for (const auto &d : diagonals) {
+    adj[d.first].push_back(d.second);
+    adj[d.second].push_back(d.first);
+  }
+
+  // ---------------------------------------------------------------
+  // 2. Соседи каждой вершины — по возрастанию угла (CCW).
+  // ---------------------------------------------------------------
+  for (VertexIndex i = 0; i < n; ++i) {
+    const Point2<T> &p = poly[i];
+
+    auto half = [&p](const Point2<T> &q) -> int {
+      const T dx = q.x - p.x;
+      const T dy = q.y - p.y;
+      if (dy < -EPSILON<T>)
+        return 1; // строго вниз
+      if (std::abs(dy) <= EPSILON<T> && dx < T(0))
+        return 1; // строго влево (ось −x)
+      return 0;
+    };
+
+    std::sort(adj[i].begin(), adj[i].end(), [&](VertexIndex a, VertexIndex b) {
+      const int ha = half(poly[a]);
+      const int hb = half(poly[b]);
+      if (ha != hb)
+        return ha < hb; // верхняя половина всегда раньше
+
+      const T cr = (poly[a] - p).cross(poly[b] - p);
+      if (std::abs(cr) > EPSILON<T>)
+        return cr > T(0); // a раньше b, если поворот к b — CCW
+
+      // Сонаправленные векторы: в простом полигоне не должно быть
+      // (два ребра/диагонали из одной вершины в одном направлении).
+      // Тай-брейк по индексу — только ради детерминизма sort.
+      return a < b;
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // 3. Обход граней: пришли в b по ребру a->b, уходим к соседу b,
+  //    следующему по ЧАСОВОЙ стрелке от a.
+  // ---------------------------------------------------------------
+  // TODO(perf): linear search внутри цикла обхода => O(deg) на каждый шаг.
+  // Заменить на предпосчитанную таблицу позиций:
+  //   std::vector<std::unordered_map<VertexIndex, size_t>> pos(n);
+  // (или, при полном переходе на нумерацию направленных рёбер, — на twin[])
+  auto indexOf = [&](VertexIndex v, VertexIndex u) -> size_t {
+    return std::find(adj[v].begin(), adj[v].end(), u) - adj[v].begin();
+  };
+
+  // TODO(perf): std::set<pair> => O(log E) на каждое посещение ребра
+  // и куча аллокаций. Правильное решение — занумеровать направленные рёбра
+  // (halfedge id = смещение в плоском массиве смежности) и держать
+  // std::vector<bool> visited(2 * E). Это заодно снимет и TODO про indexOf:
+  // переход к следующему полуребру станет чистой арифметикой над индексами.
+  std::set<std::pair<VertexIndex, VertexIndex>> visited;
+
+  std::vector<MonotonePiece> pieces;
+
+  for (VertexIndex u = 0; u < n; ++u) {
+    for (VertexIndex v : adj[u]) {
+      if (visited.count({u, v}))
+        continue;
+
+      MonotonePiece face;
+      VertexIndex a = u, b = v;
+      do {
+        visited.insert({a, b});
+        face.push_back(a);
+
+        const size_t k = indexOf(b, a);
+        const VertexIndex c = adj[b][(k + adj[b].size() - 1) % adj[b].size()];
+
+        a = b;
+        b = c;
+      } while (!(a == u && b == v));
+
+      // Внутренние грани обходятся CCW (площадь > 0),
+      // внешняя — CW (площадь < 0). Её и отбрасываем. TODO
+      Polygon facePoly;
+      facePoly.reserve(face.size());
+      for (VertexIndex idx : face)
+        facePoly.push_back(poly[idx]);
+
+      if (signedArea2D(facePoly) > EPSILON<T>)
+        pieces.push_back(std::move(face));
+    }
+  }
+
+  return pieces;
+}
+
+// Монотонность — инвариант, гарантированный фазой 1.
+// Проверка только в debug: провал означает баг в makeMonotone,
+// а не некорректные входные данные.
+template <typename T>
+bool MonotoneTriangulation<T>::isMonotonePiece(
+    const Polygon &poly, const MonotonePiece &piece) const {
+  const size_t m = piece.size();
+  if (m < 3)
+    return false;
+
+  // Кусок монотонен <=> у него нет SPLIT и MERGE.
+  // Здесь достаточно считать локальные экстремумы: их должно быть ровно
+  // по одному (один максимум = вершина, один минимум = низ).
+  size_t maxima = 0, minima = 0;
+  for (size_t k = 0; k < m; ++k) {
+    const Point2<T> &prev = poly[piece[(k + m - 1) % m]];
+    const Point2<T> &curr = poly[piece[k]];
+    const Point2<T> &next = poly[piece[(k + 1) % m]];
+
+    const bool prevBelow = isAbove(curr, prev);
+    const bool nextBelow = isAbove(curr, next);
+
+    if (prevBelow && nextBelow)
+      ++maxima;
+    if (!prevBelow && !nextBelow)
+      ++minima;
+  }
+  return maxima == 1 && minima == 1;
 }
 
 } // namespace geo

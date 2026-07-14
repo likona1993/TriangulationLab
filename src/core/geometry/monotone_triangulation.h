@@ -60,6 +60,7 @@ private:
   using Diagonal = std::pair<VertexIndex, VertexIndex>;
   using DiagonalList = std::vector<Diagonal>;
   using VertexTypes = std::vector<VertexType>;
+  using MonotonePiece = std::vector<VertexIndex>;
 
   // Общий контекст sweep-обхода, чтобы не таскать по пять указателей в
   // каждый handle*.
@@ -95,6 +96,12 @@ private:
 
   bool makeMonotone(const Polygon &poly, const std::vector<VertexType> &types,
                     std::vector<Diagonal> &diagonals);
+
+  std::vector<MonotonePiece>
+  splitIntoMonotone(const Polygon &poly,
+                    const std::vector<Diagonal> &diagonals) const;
+
+  bool isMonotonePiece(const Polygon &poly, const MonotonePiece &piece) const;
 
   std::vector<DebugStep<T>> history;
 };
