@@ -67,9 +67,15 @@ MonotoneTriangulation<T>::triangulate(const Polygon &polygon) {
   }
 
   auto pieces = splitIntoMonotone(poly, diagonals);
-  for (const auto &piece : pieces)
+  for (const auto &piece : pieces) {
     GEO_ASSERT_INVARIANT(isMonotonePiece(poly, piece),
                          "фаза 1 оставила SPLIT/MERGE — баг в makeMonotone");
+    if (!triangulateMonotonePiece(poly, piece, result.triangles)) {
+      result.success = false;
+      result.error_message = "Monotone triangulation failed";
+      return result;
+    }
+  }
 
   return result;
 }
@@ -450,6 +456,112 @@ bool MonotoneTriangulation<T>::isMonotonePiece(
       ++minima;
   }
   return maxima == 1 && minima == 1;
+}
+
+// Правило: top/bottom — по sweep-порядку (isAbove); проход ВПЕРЁД по piece
+// от top до bottom (кусок хранится в CCW) — левая цепь, продолжение от
+// bottom обратно до top — правая.
+template <typename T>
+std::vector<typename MonotoneTriangulation<T>::Chain>
+MonotoneTriangulation<T>::classifyChains(const Polygon &poly,
+                                         const MonotonePiece &piece) const {
+  const size_t m = piece.size();
+
+  size_t topPos = 0, bottomPos = 0;
+  for (size_t k = 1; k < m; ++k) {
+    if (isAbove(poly[piece[k]], poly[piece[topPos]]))
+      topPos = k;
+    if (isAbove(poly[piece[bottomPos]], poly[piece[k]]))
+      bottomPos = k;
+  }
+
+  std::vector<Chain> chain(m);
+  size_t k = topPos;
+  bool onLeft = true;
+  do {
+    chain[k] = onLeft ? Chain::LEFT : Chain::RIGHT;
+    if (k == bottomPos)
+      onLeft = false;
+    k = (k + 1) % m;
+  } while (k != topPos);
+
+  return chain;
+}
+
+template <typename T>
+void MonotoneTriangulation<T>::emitTriangle(const Polygon &poly, VertexIndex a,
+                                            VertexIndex b, VertexIndex c,
+                                            Triangles &out) const {
+  if (cross(poly[a], poly[b], poly[c]) < T(0))
+    out.push_back({poly[a], poly[c], poly[b]});
+  else
+    out.push_back({poly[a], poly[b], poly[c]});
+}
+
+template <typename T>
+bool MonotoneTriangulation<T>::triangulateMonotonePiece(
+    const Polygon &poly, const MonotonePiece &piece, Triangles &out) const {
+  const size_t m = piece.size();
+  if (m < 3)
+    return false;
+
+  const std::vector<Chain> chain = classifyChains(poly, piece);
+
+  // Слить обе цепи в одну последовательность ПОЗИЦИЙ внутри piece,
+  // отсортированную по sweep-порядку (тем же isAbove, что и в фазе 1).
+  std::vector<size_t> order(m);
+  std::iota(order.begin(), order.end(), size_t{0});
+  std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+    return isAbove(poly[piece[a]], poly[piece[b]]);
+  });
+
+  // Стек хранит ПОЗИЦИИ внутри piece (не индексы вершин в poly).
+  std::vector<size_t> stack{order[0], order[1]};
+
+  for (size_t j = 2; j + 1 < m; ++j) {
+    const size_t uj = order[j];
+
+    if (chain[uj] != chain[stack.back()]) {
+      // Другая цепь: воронка переключилась — видно весь стек целиком.
+      for (size_t k = stack.size() - 1; k > 0; --k)
+        emitTriangle(poly, piece[uj], piece[stack[k]], piece[stack[k - 1]],
+                     out);
+
+      stack.clear();
+      stack.push_back(order[j - 1]); // = старая верхушка стека
+      stack.push_back(uj);
+    } else {
+      // Та же цепь: расширяем клин, пока треугольник смотрит внутрь.
+      size_t last = stack.back();
+      stack.pop_back();
+
+      while (!stack.empty()) {
+        const size_t t0 = stack.back();
+        const T cr = cross(poly[piece[t0]], poly[piece[last]], poly[piece[uj]]);
+        const bool inside =
+            (chain[uj] == Chain::RIGHT) ? (cr < T(0)) : (cr > T(0));
+        if (!inside)
+          break;
+
+        emitTriangle(poly, piece[uj], piece[last], piece[t0], out);
+        last = t0;
+        stack.pop_back();
+      }
+      stack.push_back(last);
+      stack.push_back(uj);
+    }
+  }
+
+  // Финал: последняя вершина забирает весь оставшийся стек — это всегда
+  // монотонный "веер", (stack.size() - 1) треугольников. В отличие от
+  // текстбучной формулировки ("вставить диагональ кроме концов" — та про
+  // НОВЫЕ диагонали), нам нужны ВСЕ треугольники, включая те, что опираются
+  // на уже существующие граничные рёбра.
+  const size_t un = order[m - 1];
+  for (size_t k = 0; k + 1 < stack.size(); ++k)
+    emitTriangle(poly, piece[un], piece[stack[k]], piece[stack[k + 1]], out);
+
+  return true;
 }
 
 } // namespace geo

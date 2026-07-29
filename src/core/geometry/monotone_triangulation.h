@@ -94,14 +94,32 @@ private:
   bool handleMerge(VertexIndex vi, SweepCtx &ctx);
   bool handleRegular(VertexIndex vi, SweepCtx &ctx);
 
+  // добавить в полигон диагонали, разбивающие его на монотонные куски
   bool makeMonotone(const Polygon &poly, const std::vector<VertexType> &types,
                     std::vector<Diagonal> &diagonals);
 
   std::vector<MonotonePiece>
+  // разбить полигон на моноонные куски
   splitIntoMonotone(const Polygon &poly,
                     const std::vector<Diagonal> &diagonals) const;
 
+  // проверка монотонности полученного куска
   bool isMonotonePiece(const Polygon &poly, const MonotonePiece &piece) const;
+
+  // тип цепочки
+  enum class Chain { LEFT, RIGHT };
+
+  // разбиение монотонного куска на левую и правую цепочки
+  std::vector<Chain> classifyChains(const Polygon &poly,
+                                    const MonotonePiece &piece) const;
+
+  // гарантия CCW-ориентации выходных треугольников
+  void emitTriangle(const Polygon &poly, VertexIndex a, VertexIndex b,
+                    VertexIndex c, Triangles &out) const;
+
+  // триангуляция монотонного куска треугольниками
+  bool triangulateMonotonePiece(const Polygon &poly, const MonotonePiece &piece,
+                                Triangles &out) const;
 
   std::vector<DebugStep<T>> history;
 };
