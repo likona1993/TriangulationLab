@@ -492,7 +492,7 @@ template <typename T>
 void MonotoneTriangulation<T>::emitTriangle(const Polygon &poly, VertexIndex a,
                                             VertexIndex b, VertexIndex c,
                                             Triangles &out) const {
-  if (cross(poly[a], poly[b], poly[c]) < T(0))
+  if ((poly[b] - poly[a]).cross(poly[c] - poly[a]) < T(0))
     out.push_back({poly[a], poly[c], poly[b]});
   else
     out.push_back({poly[a], poly[b], poly[c]});
@@ -537,7 +537,8 @@ bool MonotoneTriangulation<T>::triangulateMonotonePiece(
 
       while (!stack.empty()) {
         const size_t t0 = stack.back();
-        const T cr = cross(poly[piece[t0]], poly[piece[last]], poly[piece[uj]]);
+        const T cr = (poly[piece[last]] - poly[piece[t0]])
+                         .cross(poly[piece[uj]] - poly[piece[t0]]);
         const bool inside =
             (chain[uj] == Chain::RIGHT) ? (cr < T(0)) : (cr > T(0));
         if (!inside)
