@@ -36,8 +36,11 @@ public:
   const std::vector<DebugStep<T>> &getHistory() const { return history; }
 
 private:
-  // Вспомогательные функции
+
   enum VertexType { START, END, SPLIT, MERGE, REGULAR };
+
+  // переводит типы вершин в текст
+  static std::string vertexTypeName(VertexType type);
 
   // Вспомогательные методы
   VertexType classifyVertex(const Polygon &poly, size_t i) const;
@@ -121,7 +124,7 @@ private:
   bool triangulateMonotonePiece(const Polygon &poly, const MonotonePiece &piece,
                                 Triangles &out) const;
 
-  std::vector<DebugStep<T>> history;
+  mutable std::vector<DebugStep<T>> history;
 };
 } // namespace geo
 

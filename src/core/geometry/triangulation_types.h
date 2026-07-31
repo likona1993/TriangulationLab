@@ -1,5 +1,8 @@
 #pragma once
+
+#include <string>
 #include "types.h"
+
 
 namespace geo {
 
