@@ -127,7 +127,7 @@ TEST(MonotoneTriangulationTest, RejectsSelfIntersectingPolygon) {
     auto result = mt.triangulate(makeBowTie());
 
     EXPECT_FALSE(result);
-    EXPECT_EQ(result.error->code, geo::);
+    EXPECT_EQ(result.error->code, geo::ErrorCode::SelfIntersectingPolygon);
     EXPECT_TRUE(result.triangles.empty());
     EXPECT_TRUE(mt.getDebugHistory().empty());
 }
@@ -184,7 +184,7 @@ TEST(MonotoneTriangulationTest, ClearsDebugHistoryBeforeNextRun) {
     MonotoneTriangulation<double> mt;
 
     auto first = mt.triangulate(makeLShape());
-    ASSERT_TRUE(first) << first.error;
+    ASSERT_TRUE(first) << first.error->debugMessage;
     ASSERT_FALSE(mt.getDebugHistory().empty());
 
     auto second = mt.triangulate(Polygon2<double>{{0.0, 0.0}, {1.0, 0.0}});
@@ -202,7 +202,7 @@ TEST(MonotoneTriangulationTest, RecordsDiagonalsForSplitMergePolygon) {
 
     auto result = mt.triangulate(poly);
 
-    ASSERT_TRUE(result) << result.error_message;
+    ASSERT_TRUE(result) << result.error->debugMessage;
     EXPECT_EQ(result.triangles.size(), poly.size() - 2);
     EXPECT_NEAR(sumTrianglesArea(result.triangles), absArea(poly), EPSILON<double>);
     EXPECT_TRUE(allTrianglesNonDegenerate(result.triangles, EPSILON<double>));
