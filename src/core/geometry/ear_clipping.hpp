@@ -4,6 +4,8 @@
 #include <string>
 
 #include "utils/geometry_predicates.h"
+#include "triangulation_error.h"
+#include "triangulation_algorithm.h"
 
 namespace geo {
 
@@ -43,12 +45,17 @@ TriangulationResult<T> EarClipping<T>::triangulate(const Polygon2<T>& input, T e
     m_history.clear();
 
     if (input.size() < 3) {
-        result.error_message = "Polygon must have at least 3 vertices";
+        result.error = makeNotEnoughVerticesError(TriangulationAlgorithm::EarClipping);
         return result;
     }
 
     if (!isSimplePolygon(input, eps)) {
-        result.error_message = "Polygon is self-intersecting";
+        result.error =  makeError(
+            ErrorCategory::Input,
+            ErrorCode::SelfIntersectingPolygon,
+            "Polygon failed simplicity check",
+            TriangulationAlgorithm::EarClipping
+            );
         return result;
     }
 
@@ -93,8 +100,12 @@ TriangulationResult<T> EarClipping<T>::triangulate(const Polygon2<T>& input, T e
         }
 
         // Если и это не помогло — ошибка
-        result.success = false;
-        result.error_message = "No ear found in polygon (possibly degenerate or self-intersecting)";
+        result.error = makeError(
+            ErrorCategory::Algorithm,
+            ErrorCode::EarNotFound,
+            "Could not find an ear even after relaxed epsilon",
+            TriangulationAlgorithm::EarClipping
+            );;
         return result;
     }
 
@@ -108,7 +119,6 @@ TriangulationResult<T> EarClipping<T>::triangulate(const Polygon2<T>& input, T e
         result.triangles.push_back(step.added_triangles[0]);
     }
 
-    result.success = true;
     return result;
 }
 

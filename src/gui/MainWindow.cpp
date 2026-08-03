@@ -41,7 +41,7 @@ MainWindow::MainWindow(QWidget *parent)
         Q_UNUSED(index);
 
         const auto algorithm =
-            static_cast<TriangulationWidget::Algorithm>(combo->currentData().toInt());
+            static_cast<geo::TriangulationAlgorithm>(combo->currentData().toInt());
 
         m_widget->setAlgorithm(algorithm);
         m_widget->setFocus();

@@ -8,6 +8,7 @@
 
 #include "../facade/TriangulationFacade.h"
 #include "../rendering/IRenderer.h"
+#include "../core/geometry/triangulation_algorithm.h"
 
 /**
  * @brief Виджет для отображения полигона и триангуляции.
@@ -27,7 +28,7 @@ public:
     explicit TriangulationWidget(QWidget* parent = nullptr);
     ~TriangulationWidget() override;
 
-    void setAlgorithm(Algorithm algorithm);
+    void setAlgorithm(geo::TriangulationAlgorithm algo);
 
     // Доступ к фасаду (для MainWindow)
     facade::TriangulationFacade* facade() const { return m_facade.get(); }

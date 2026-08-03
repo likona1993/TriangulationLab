@@ -40,7 +40,7 @@ TEST(EarClippingTest, Square) {
     Polygon2<double> square = {{0,0}, {1,0}, {1,1}, {0,1}};
     EarClipping<double> ec;
     auto res = ec.triangulate(square);
-    ASSERT_TRUE(res.success);
+    ASSERT_TRUE(res);
     EXPECT_EQ(res.triangles.size(), 2);
 
     double area = absArea(square);
@@ -65,7 +65,7 @@ TEST(EarClippingTest, ConvexPentagon) {
 
     EarClipping<double> ec;
     auto res = ec.triangulate(pentagon);
-    ASSERT_TRUE(res.success);
+    ASSERT_TRUE(res);
     EXPECT_EQ(res.triangles.size(), 3);
 
     double area = absArea(pentagon);
@@ -79,7 +79,7 @@ TEST(EarClippingTest, LShapedPolygon) {
     Polygon2<double> lShape = {{0,0}, {2,0}, {2,1}, {1,1}, {1,2}, {0,2}};
     EarClipping<double> ec;
     auto res = ec.triangulate(lShape);
-    ASSERT_TRUE(res.success);
+    ASSERT_TRUE(res);
     EXPECT_EQ(res.triangles.size(), 4);
 
     double area = absArea(lShape);
@@ -100,7 +100,7 @@ TEST(EarClippingTest, CrossShapedPolygon) {
     ensureCCW(cross);
     EarClipping<double> ec;
     auto res = ec.triangulate(cross);
-    ASSERT_TRUE(res.success);
+    ASSERT_TRUE(res);
     EXPECT_EQ(res.triangles.size(), 12);
 
     double area = absArea(cross);
@@ -116,7 +116,7 @@ TEST(EarClippingTest, PolygonWithCollinearPointsCleaned) {
     // Now raw is a valid square
     EarClipping<double> ec;
     auto res = ec.triangulate(raw);
-    ASSERT_TRUE(res.success);
+    ASSERT_TRUE(res);
     EXPECT_EQ(res.triangles.size(), 2);
 
     double area = absArea(raw);
@@ -128,7 +128,7 @@ TEST(EarClippingTest, SelfIntersectingPolygon) {
     Polygon2<double> bow = {{0,0}, {1,1}, {0,1}, {1,0}};
     EarClipping<double> ec;
     auto res = ec.triangulate(bow);
-    EXPECT_FALSE(res.success);
+    EXPECT_FALSE(res);
     EXPECT_TRUE(res.triangles.empty());
 }
 
@@ -136,17 +136,17 @@ TEST(EarClippingTest, PolygonWithLessThan3Vertices) {
     Polygon2<double> two = {{0,0}, {1,0}};
     EarClipping<double> ec;
     auto res = ec.triangulate(two);
-    EXPECT_FALSE(res.success);
+    EXPECT_FALSE(res);
     EXPECT_TRUE(res.triangles.empty());
 
     Polygon2<double> one = {{0,0}};
     res = ec.triangulate(one);
-    EXPECT_FALSE(res.success);
+    EXPECT_FALSE(res);
     EXPECT_TRUE(res.triangles.empty());
 
     Polygon2<double> empty;
     res = ec.triangulate(empty);
-    EXPECT_FALSE(res.success);
+    EXPECT_FALSE(res);
     EXPECT_TRUE(res.triangles.empty());
 }
 
@@ -154,7 +154,7 @@ TEST(EarClippingTest, DegeneratePolygonAllCollinear) {
     Polygon2<double> collinear = {{0,0}, {1,0}, {2,0}, {3,0}};
     EarClipping<double> ec;
     auto res = ec.triangulate(collinear);
-    EXPECT_FALSE(res.success);
+    EXPECT_FALSE(res);
     EXPECT_TRUE(res.triangles.empty());
 }
 
@@ -162,7 +162,7 @@ TEST(EarClippingTest, DebugHistoryCount) {
     Polygon2<double> square = {{0,0}, {1,0}, {1,1}, {0,1}};
     EarClipping<double> ec;
     auto res = ec.triangulate(square);
-    ASSERT_TRUE(res.success);
+    ASSERT_TRUE(res);
     auto history = ec.getDebugHistory();
     EXPECT_EQ(history.size(), 2);
 
@@ -172,14 +172,14 @@ TEST(EarClippingTest, DebugHistoryCount) {
     ensureCCW(pentagon);
     EarClipping<double> ec2;
     res = ec2.triangulate(pentagon);
-    ASSERT_TRUE(res.success);
+    ASSERT_TRUE(res);
     history = ec2.getDebugHistory();
     EXPECT_EQ(history.size(), 3);
 
     Polygon2<double> lShape = {{0,0}, {2,0}, {2,1}, {1,1}, {1,2}, {0,2}};
     EarClipping<double> ec3;
     res = ec3.triangulate(lShape);
-    ASSERT_TRUE(res.success);
+    ASSERT_TRUE(res);
     history = ec3.getDebugHistory();
     EXPECT_EQ(history.size(), 4);
 }
@@ -188,7 +188,7 @@ TEST(EarClippingTest, FinalTriangleInDebugHistory) {
     Polygon2<double> square = {{0,0}, {1,0}, {1,1}, {0,1}};
     EarClipping<double> ec;
     auto res = ec.triangulate(square);
-    ASSERT_TRUE(res.success);
+    ASSERT_TRUE(res);
     auto history = ec.getDebugHistory();
     ASSERT_GE(history.size(), 1);
     auto last = history.back();
@@ -211,7 +211,7 @@ TEST(EarClippingTest, ConvexPolygonWithManyVertices) {
     ensureCCW(hex);
     EarClipping<double> ec;
     auto res = ec.triangulate(hex);
-    ASSERT_TRUE(res.success);
+    ASSERT_TRUE(res);
     EXPECT_EQ(res.triangles.size(), 4);
 
     double area = absArea(hex);

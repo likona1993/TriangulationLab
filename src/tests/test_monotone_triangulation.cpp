@@ -113,8 +113,8 @@ TEST(MonotoneTriangulationTest, RejectsPolygonWithTooFewVertices) {
 
     auto result = mt.triangulate(poly);
 
-    EXPECT_FALSE(result.success);
-    EXPECT_EQ(result.error_message, "Polygon must have at least 3 vertices");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error->code, geo::ErrorCode::NotEnoughVertices);
     EXPECT_TRUE(result.triangles.empty());
     EXPECT_TRUE(mt.getDebugHistory().empty());
 }
@@ -126,8 +126,8 @@ TEST(MonotoneTriangulationTest, RejectsSelfIntersectingPolygon) {
 
     auto result = mt.triangulate(makeBowTie());
 
-    EXPECT_FALSE(result.success);
-    EXPECT_EQ(result.error_message, "Polygon is self-intersecting");
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error->code, geo::);
     EXPECT_TRUE(result.triangles.empty());
     EXPECT_TRUE(mt.getDebugHistory().empty());
 }
@@ -140,8 +140,7 @@ TEST(MonotoneTriangulationTest, TriangulatesSquareIntoTwoTriangles) {
 
     auto result = mt.triangulate(square);
 
-    ASSERT_TRUE(result.success) << result.error_message;
-    EXPECT_TRUE(result.error_message.empty());
+    ASSERT_TRUE(result) << result.error->debugMessage;
     EXPECT_EQ(result.triangles.size(), 2u);
 
     EXPECT_NEAR(sumTrianglesArea(result.triangles), absArea(square), EPSILON<double>);
@@ -169,7 +168,7 @@ TEST(MonotoneTriangulationTest, TriangulatesConcavePolygonIntoNMinusTwoTriangles
 
     auto result = mt.triangulate(poly);
 
-    ASSERT_TRUE(result.success) << result.error_message;
+    ASSERT_TRUE(result) << result.error->debugMessage;
     EXPECT_EQ(result.triangles.size(), poly.size() - 2);
 
     EXPECT_NEAR(sumTrianglesArea(result.triangles), absArea(poly), EPSILON<double>);
@@ -185,12 +184,12 @@ TEST(MonotoneTriangulationTest, ClearsDebugHistoryBeforeNextRun) {
     MonotoneTriangulation<double> mt;
 
     auto first = mt.triangulate(makeLShape());
-    ASSERT_TRUE(first.success) << first.error_message;
+    ASSERT_TRUE(first) << first.error;
     ASSERT_FALSE(mt.getDebugHistory().empty());
 
     auto second = mt.triangulate(Polygon2<double>{{0.0, 0.0}, {1.0, 0.0}});
-    EXPECT_FALSE(second.success);
-    EXPECT_EQ(second.error_message, "Polygon must have at least 3 vertices");
+    EXPECT_FALSE(second);
+    EXPECT_EQ(second.error->code, geo::ErrorCode::NotEnoughVertices);
     EXPECT_TRUE(mt.getDebugHistory().empty());
 }
 
@@ -203,7 +202,7 @@ TEST(MonotoneTriangulationTest, RecordsDiagonalsForSplitMergePolygon) {
 
     auto result = mt.triangulate(poly);
 
-    ASSERT_TRUE(result.success) << result.error_message;
+    ASSERT_TRUE(result) << result.error_message;
     EXPECT_EQ(result.triangles.size(), poly.size() - 2);
     EXPECT_NEAR(sumTrianglesArea(result.triangles), absArea(poly), EPSILON<double>);
     EXPECT_TRUE(allTrianglesNonDegenerate(result.triangles, EPSILON<double>));

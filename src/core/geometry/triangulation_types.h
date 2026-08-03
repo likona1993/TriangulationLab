@@ -1,8 +1,10 @@
 #pragma once
 
 #include <string>
-#include "types.h"
+#include <optional>
 
+#include "types.h"
+#include "triangulation_error.h"
 
 namespace geo {
 
@@ -23,16 +25,18 @@ struct EdgeLess {
 // ============================================================
 //  Результат триангуляции
 // ============================================================
-template <typename T> struct TriangulationResult {
+template <typename T>
+struct TriangulationResult {
   std::vector<Triangle2<T>> triangles;
-  bool success = false;
-  std::string error_message;
+  std::optional<TriangulationError> error;
+  explicit operator bool() const noexcept { return !error.has_value(); }
 };
 
 // ============================================================
 //  Шаг отладки (для визуализации пошагового выполнения)
 // ============================================================
-template <typename T> struct DebugStep {
+template <typename T>
+struct DebugStep {
 
   // Состояние полигона перед шагом (для отрисовки)
   Polygon2<T> polygon_before;

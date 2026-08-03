@@ -9,6 +9,7 @@
 #include "geometry/ear_clipping.h"
 #include "geometry/monotone_triangulation.h"
 #include "geometry/types.h"
+#include "geometry/triangulation_algorithm.h"
 
 // Forward declaration для DebugFacade (чтобы не тянуть заголовок везде)
 namespace facade {
@@ -31,12 +32,10 @@ class TriangulationFacade : public QObject {
 
 public:
 
-    enum class Algorithm { EarClipping, Monotone };
-
     explicit TriangulationFacade(QObject *parent = nullptr);
     ~TriangulationFacade() override;
 
-    void setAlgorithm(Algorithm algo);
+    void setAlgorithm(geo::TriangulationAlgorithm algo);
 
     // ==================== Управление полигоном ====================
     void addPoint(double x, double y);
@@ -91,7 +90,7 @@ public:
     bool m_isClosed = false;
 
     // Алгоритмы
-    Algorithm m_currentAlgorithm = Algorithm::EarClipping; // текущее поведение по умолчанию
+    geo::TriangulationAlgorithm m_currentAlgorithm = geo::TriangulationAlgorithm::EarClipping; // текущее поведение по умолчанию
     std::unique_ptr<geo::EarClipping<double>> m_earClipping;
     std::unique_ptr<geo::MonotoneTriangulation<double>> m_monotone;
 

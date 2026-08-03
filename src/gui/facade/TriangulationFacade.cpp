@@ -2,6 +2,9 @@
 #include "DebugFacade.h"
 #include <QDebug>
 
+#include "triangulation_error_text.h"
+#include "algorithm_text.h"
+
 namespace facade {
 
 // ============================================================
@@ -22,12 +25,10 @@ TriangulationFacade::TriangulationFacade(QObject *parent)
 
 TriangulationFacade::~TriangulationFacade() = default;
 
-void TriangulationFacade::setAlgorithm(Algorithm algo) {
+void TriangulationFacade::setAlgorithm(geo::TriangulationAlgorithm algo) {
     m_currentAlgorithm = algo;
     clearTriangulation();
-    emit statusChanged(algo == Algorithm::EarClipping
-                           ? "Algorithm: Ear Clipping"
-                           : "Algorithm: Monotone");
+    emit statusChanged(toString(algo));
 }
 
 // ============================================================
@@ -72,7 +73,7 @@ void TriangulationFacade::clearPolygon() {
 
 void TriangulationFacade::closePolygon() {
   if (m_polygon.size() < 3) {
-    emit errorOccurred("Need at least 3 points to close polygon");
+    emit errorOccurred(gui::errorText(geo::ErrorCode::NotEnoughVertices));
     return;
   }
 
@@ -83,7 +84,7 @@ void TriangulationFacade::closePolygon() {
   geo::removeCollinearPoints(m_polygon);
 
   if (m_polygon.size() < 3) {
-    emit errorOccurred("Polygon is degenerate after cleaning");
+    emit errorOccurred(gui::errorText(geo::ErrorCode::DegeneratePolygon));
     return;
   }
 
@@ -92,8 +93,7 @@ void TriangulationFacade::closePolygon() {
       QString("Polygon closed with %1 vertices").arg(m_polygon.size()));
   emitPolygonUpdate();
 
-  // Больше не жёстко "triangulateMonotone()" — смотрим на текущий режим
-  if (m_currentAlgorithm == Algorithm::EarClipping) {
+  if (m_currentAlgorithm == geo::TriangulationAlgorithm::EarClipping) {
       triangulateEarClipping();
   } else {
       triangulateMonotone();
@@ -106,7 +106,7 @@ void TriangulationFacade::closePolygon() {
 
 bool TriangulationFacade::triangulateEarClipping() {
   if (!m_isClosed || m_polygon.size() < 3) {
-    emit errorOccurred("Polygon must be closed and have at least 3 vertices");
+    emit errorOccurred(gui::errorText(geo::ErrorCode::NotEnoughVertices));
     return false;
   }
 
@@ -117,7 +117,7 @@ bool TriangulationFacade::triangulateEarClipping() {
   // Запускаем алгоритм
   auto result = m_earClipping->triangulate(m_polygon);
 
-  if (result.success) {
+  if (bool(result)) {
     m_triangles = std::move(result.triangles);
 
     // Передаём историю в DebugFacade
@@ -129,14 +129,14 @@ bool TriangulationFacade::triangulateEarClipping() {
     emit debugStepChanged(getCurrentStep(), getTotalSteps());
     return true;
   } else {
-    emit errorOccurred(QString::fromStdString(result.error_message));
+    emit errorOccurred(gui::errorText(result.error->code));
     return false;
   }
 }
 
 bool TriangulationFacade::triangulateMonotone() {
   if (!m_isClosed || m_polygon.size() < 3) {
-    emit errorOccurred("Polygon must be closed and have at least 3 vertices");
+    emit errorOccurred(gui::errorText(geo::ErrorCode::NotEnoughVertices));
     return false;
   }
 
@@ -147,7 +147,7 @@ bool TriangulationFacade::triangulateMonotone() {
   // Запускаем алгоритм
   auto result = m_monotone->triangulate(m_polygon);
 
-  if (result.success) {
+  if (result) {
     m_triangles = std::move(result.triangles);
 
     // Передаём историю в DebugFacade
@@ -159,7 +159,7 @@ bool TriangulationFacade::triangulateMonotone() {
     emit debugStepChanged(getCurrentStep(), getTotalSteps());
     return true;
   } else {
-    emit errorOccurred(QString::fromStdString(result.error_message));
+    emit errorOccurred(gui::errorText(result.error->code));
     return false;
   }
 

@@ -11,6 +11,8 @@ add_library(core STATIC
     utils/numeric.h
     utils/geometry_predicates.h
     utils/assert.h
+    geometry/triangulation_error.h
+    geometry/triangulation_algorithm.h
 )
 
 # Включаемые директории

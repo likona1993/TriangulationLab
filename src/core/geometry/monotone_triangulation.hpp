@@ -43,13 +43,18 @@ MonotoneTriangulation<T>::triangulate(const Polygon &polygon) {
     history.clear();
 
   if (polygon.size() < 3) {
-    result.error_message = "Polygon must have at least 3 vertices";
+    result.error = makeNotEnoughVerticesError(geo::TriangulationAlgorithm::Monotone);
     return result;
   }
 
   const T eps = EPSILON<T>;
   if (!isSimplePolygon(polygon, eps)) {
-    result.error_message = "Polygon is self-intersecting";
+    result.error = makeError(
+          ErrorCategory::Input,
+          ErrorCode::SelfIntersectingPolygon,
+          "Polygon failed simplicity check",
+          TriangulationAlgorithm::EarClipping
+          );;
     return result;
   }
   // конец дублированного блока
@@ -65,22 +70,30 @@ MonotoneTriangulation<T>::triangulate(const Polygon &polygon) {
     types[i] = classifyVertex(poly, i);
 
   if (!makeMonotone(poly, types, diagonals)) {
-    result.error_message = "Failed to decompose polygon into monotone pieces";
-    return result;
+      result.error = makeError(
+          ErrorCategory::Algorithm,
+          ErrorCode::MonotoneDecompositionFailed,
+          "makeMonotone failed to build monotone decomposition",
+          TriangulationAlgorithm::Monotone
+          );
+      return result;
   }
 
   auto pieces = splitIntoMonotone(poly, diagonals);
   for (const auto &piece : pieces) {
     GEO_ASSERT_INVARIANT(isMonotonePiece(poly, piece),
-                         "фаза 1 оставила SPLIT/MERGE — баг в makeMonotone");
+                         "makeMonotone invariant violated: SPLIT/MERGE vertices remain in piece");
     if (!triangulateMonotonePiece(poly, piece, result.triangles)) {
-      result.success = false;
-      result.error_message = "Monotone triangulation failed";
-      return result;
+        result.error = makeError(
+            ErrorCategory::Algorithm,
+            ErrorCode::MonotonePieceTriangulationFailed,
+            "triangulateMonotonePiece failed",
+            TriangulationAlgorithm::Monotone
+            );
     }
   }
 
-  result.success = true;
+
   return result;
 }
 

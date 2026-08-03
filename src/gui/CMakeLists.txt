@@ -17,7 +17,9 @@ set(HEADERS
     rendering/IRenderer.h
     rendering/QPainterRenderer.h
 )
-add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS}
+    facade/algorithm_text.h
+    facade/triangulation_error_text.h)
 
 # Подключение библиотек
 target_link_libraries(${PROJECT_NAME} PRIVATE
