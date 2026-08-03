@@ -1,6 +1,7 @@
 #pragma once
 #include <QPointF>
 #include <QRectF>
+#include <QLine>
 #include <QColor>
 #include <vector>
 #include <array>
@@ -42,8 +43,13 @@ public:
     virtual void drawVertexLabels(const std::vector<QPointF>& points,
                                   const QColor& color) = 0;
 
-    virtual void drawEarMarker(const QPointF& position,
+    virtual void drawVertexHighlight(const QPointF& position,
                                const QColor& color) = 0;
+
+    virtual void drawDiagonals(const std::vector<QLineF>& diagonals,
+        const QColor& color,
+        float lineWidth,
+        Qt::PenStyle style) = 0;
 
     // Дополнительно: сетка, оси и т.д.
     virtual void drawGrid(const QRectF& worldRect) = 0;

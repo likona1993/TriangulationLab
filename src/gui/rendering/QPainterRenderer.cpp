@@ -149,7 +149,7 @@ void QPainterRenderer::drawVertexLabels(const std::vector<QPointF>& points,
     m_painter->restore();
 }
 
-void QPainterRenderer::drawEarMarker(const QPointF& position,
+void QPainterRenderer::drawVertexHighlight(const QPointF& position,
                                      const QColor& color) {
     if (!m_isActive) return;
 
@@ -157,6 +157,20 @@ void QPainterRenderer::drawEarMarker(const QPointF& position,
     m_painter->setBrush(Qt::NoBrush);
     qreal radius = 10.0;
     m_painter->drawEllipse(position, radius, radius);
+}
+
+void QPainterRenderer::drawDiagonals(const std::vector<QLineF> &diagonals, const QColor &color, float lineWidth, Qt::PenStyle style)
+{
+    if (!m_isActive || !m_painter || diagonals.empty()) return;
+
+    QPen pen(color, lineWidth);
+    pen.setStyle(style);
+    m_painter->setPen(pen);
+    m_painter->setBrush(Qt::NoBrush);
+
+    for (const auto& diagonal : diagonals) {
+        m_painter->drawLine(diagonal);
+    }
 }
 
 void QPainterRenderer::drawGrid(const QRectF& worldRect) {

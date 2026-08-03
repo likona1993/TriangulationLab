@@ -33,8 +33,14 @@ public:
     void drawVertexLabels(const std::vector<QPointF>& points,
                           const QColor& color) override;
 
-    void drawEarMarker(const QPointF& position,
+    void drawVertexHighlight(const QPointF& position,
                        const QColor& color) override;
+
+    void drawDiagonals(
+        const std::vector<QLineF>& diagonals,
+        const QColor& color,
+        float lineWidth,
+        Qt::PenStyle style);
 
     void drawGrid(const QRectF& worldRect) override;
 

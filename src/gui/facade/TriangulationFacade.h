@@ -4,6 +4,7 @@
 #include <array>
 #include <memory>
 #include <vector>
+#include <QLineF>
 
 #include "geometry/ear_clipping.h"
 #include "geometry/monotone_triangulation.h"
@@ -29,73 +30,81 @@ class TriangulationFacade : public QObject {
   Q_OBJECT
 
 public:
-  explicit TriangulationFacade(QObject *parent = nullptr);
-  ~TriangulationFacade() override;
 
-  // ==================== Управление полигоном ====================
-  void addPoint(double x, double y);
-  void addPoint(const QPointF &point);
-  void removeLastPoint();
-  void clearPolygon();
-  void closePolygon(); // Замыкает и запускает триангуляцию
+    enum class Algorithm { EarClipping, Monotone };
 
-  // ==================== Триангуляция ====================
-  bool triangulateEarClipping(); // Явный вызов (если нужен)
-  bool triangulateMonotone();
+    explicit TriangulationFacade(QObject *parent = nullptr);
+    ~TriangulationFacade() override;
 
-  // ==================== Получение данных ====================
-  std::vector<QPointF> getPolygonPoints() const;
-  std::vector<std::array<QPointF, 3>> getTriangles() const;
+    void setAlgorithm(Algorithm algo);
 
-  bool isPolygonClosed() const { return m_isClosed; }
-  bool hasTriangulation() const { return !m_triangles.empty(); }
-  size_t getVertexCount() const { return m_polygon.size(); }
-  size_t getTriangleCount() const { return m_triangles.size(); }
+    // ==================== Управление полигоном ====================
+    void addPoint(double x, double y);
+    void addPoint(const QPointF &point);
+    void removeLastPoint();
+    void clearPolygon();
+    void closePolygon(); // Замыкает и запускает триангуляцию
 
-  // ==================== Дебаггер (делегируется DebugFacade)
-  // ====================
-  bool stepForward();
-  bool stepBackward();
-  void goToStep(int step);
-  int getCurrentStep() const;
-  int getTotalSteps() const;
+    // ==================== Триангуляция ====================
+    bool triangulateEarClipping(); // Явный вызов (если нужен)
+    bool triangulateMonotone();
 
-  // Данные для отрисовки дебаг-состояния
-  std::vector<QPointF> getDebugPolygon() const;
-  std::vector<std::array<QPointF, 3>> getDebugTriangles() const;
-  QString getDebugDescription() const;
-  size_t getDebugEarIndex() const;
+    // ==================== Получение данных ====================
+    std::vector<QPointF> getPolygonPoints() const;
+    std::vector<std::array<QPointF, 3>> getTriangles() const;
 
-signals:
-  // Сигналы для UI
-  void polygonChanged(const std::vector<QPointF> &points);
-  void
-  triangulationCompleted(const std::vector<std::array<QPointF, 3>> &triangles);
-  void debugStepChanged(int currentStep, int totalSteps);
-  void errorOccurred(const QString &message);
-  void statusChanged(const QString &message);
+    bool isPolygonClosed() const { return m_isClosed; }
+    bool hasTriangulation() const { return !m_triangles.empty(); }
+    size_t getVertexCount() const { return m_polygon.size(); }
+    size_t getTriangleCount() const { return m_triangles.size(); }
 
-private:
-  // Данные
-  geo::Polygon2<double> m_polygon;
-  std::vector<geo::Triangle2<double>> m_triangles;
-  bool m_isClosed = false;
+    // ==================== Дебаггер (делегируется DebugFacade)
+    // ====================
+    bool stepForward();
+    bool stepBackward();
+    void goToStep(int step);
+    int getCurrentStep() const;
+    int getTotalSteps() const;
 
-  // Алгоритмы
-  std::unique_ptr<geo::EarClipping<double>> m_earClipping;
-  std::unique_ptr<geo::MonotoneTriangulation<double>> m_monotone;
+    // Данные для отрисовки дебаг-состояния
+    std::vector<QPointF> getDebugPolygon() const;
+    std::vector<std::array<QPointF, 3>> getDebugTriangles() const;
+    QString getDebugDescription() const;
+    size_t getDebugHighlightedVertexIndex() const; // TDOD - убрать
+    std::vector<size_t> getDebugHighlightedVertices() const;
+    std::vector<QLineF> getDebugDiagonals() const;
 
-  // Дебаггер (отдельный фасад)
-  std::unique_ptr<DebugFacade> m_debugFacade;
+    signals:
+    // Сигналы для UI
+    void polygonChanged(const std::vector<QPointF> &points);
+    void
+    triangulationCompleted(const std::vector<std::array<QPointF, 3>> &triangles);
+    void debugStepChanged(int currentStep, int totalSteps);
+    void errorOccurred(const QString &message);
+    void statusChanged(const QString &message);
 
-  // Вспомогательные методы
-  void emitPolygonUpdate();
-  void emitTriangulationUpdate();
+    private:
+    // Данные
+    geo::Polygon2<double> m_polygon;
+    std::vector<geo::Triangle2<double>> m_triangles;
+    bool m_isClosed = false;
 
-  // Преобразования типов
-  static QPointF toQPoint(const geo::Point2<double> &p);
-  static geo::Point2<double> toGeoPoint(const QPointF &p);
-  static std::array<QPointF, 3> toQTriangle(const geo::Triangle2<double> &t);
+    // Алгоритмы
+    Algorithm m_currentAlgorithm = Algorithm::Monotone; // текущее поведение по умолчанию
+    std::unique_ptr<geo::EarClipping<double>> m_earClipping;
+    std::unique_ptr<geo::MonotoneTriangulation<double>> m_monotone;
+
+    // Дебаггер (отдельный фасад)
+    std::unique_ptr<DebugFacade> m_debugFacade;
+
+    // Вспомогательные методы
+    void emitPolygonUpdate();
+    void emitTriangulationUpdate();
+
+    // Преобразования типов
+    static QPointF toQPoint(const geo::Point2<double> &p);
+    static geo::Point2<double> toGeoPoint(const QPointF &p);
+    static std::array<QPointF, 3> toQTriangle(const geo::Triangle2<double> &t);
 };
 
 } // namespace facade

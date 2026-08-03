@@ -1,10 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working in this repository.
 
 ## Project overview
 
-TriangulationLab is a Qt6/Qt5 desktop app for visualizing 2D polygon triangulation algorithms (currently ear clipping; monotone-polygon triangulation is in progress — it decomposes a polygon into y-monotone pieces but doesn't yet emit triangles, and isn't wired into the GUI facade). It's split into a template-based, Qt-independent core geometry library and a Qt Widgets GUI that drives it through a facade layer.
+TriangulationLab is a Qt6/Qt5 desktop app for visualizing 2D polygon triangulation algorithms. At the moment, the GUI/debug flow is temporarily centered on monotone triangulation: `MonotoneTriangulation` emits triangles and debug history, and the facade/UI path is being generalized around it before algorithm switching is revisited. It's split into a template-based, Qt-independent core geometry library and a Qt Widgets GUI that drives it through a facade layer.
 
 ## Build
 
@@ -41,19 +41,38 @@ ctest --test-dir build --output-on-failure
 **`src/core`** — a header-only-style, Qt-independent static library (`core`) of template geometry code under `geo::`. Templates split declaration/implementation across `.h` (declarations) and `.hpp` (definitions, included at the bottom of the `.h`), e.g. `types.h`/`types.hpp`. All core code is templated on the scalar type `T` (used as `double` throughout the GUI); `EPSILON<T>` (see `utils/numeric.h`) is the default tolerance for geometric comparisons, with a coarser specialization for `float`.
 
 - `geometry/types.h(.hpp)` — `Point2<T>`, `Polygon2<T>` (alias for `vector<Point2<T>>`), `Triangle2<T>`, and polygon utilities (`signedArea2D`, `ensureCCW`, `removeCollinearPoints`).
-- `geometry/ear_clipping.h(.hpp)` — `EarClipping<T>::triangulate()`. On failure to find an ear it retries once with a 10x-relaxed epsilon before giving up. Every ear cut is recorded as a `DebugStep<T>` (polygon state before the cut, the cut triangle, the ear index) in `m_history`, which is what powers the GUI's step-through debugger.
-- `geometry/monotone_triangulation.h(.hpp)` — `MonotoneTriangulation<T>`, a second (sweep-line) triangulation algorithm, in progress. `triangulate()` classifies every vertex via `classifyVertex()` (`START`/`END`/`SPLIT`/`MERGE`/`REGULAR`), then `makeMonotone()` sweeps top-to-bottom dispatching each vertex to the matching `handle*` method (all five, plus `findLeftEdge`, are implemented) to add diagonals until the polygon is decomposed into y-monotone pieces; `splitIntoMonotone()` then walks the planar graph (boundary edges + diagonals) face-by-face to materialize those pieces. `triangulate()` doesn't yet turn the pieces into triangles or populate debug history — it currently only reports success/failure of the decomposition step in `TriangulationResult<T>::error_message`. In debug builds, `GEO_ASSERT_INVARIANT` (`utils/assert.h`) checks every piece with `isMonotonePiece()` to catch decomposition bugs early. Note for this `.h`/`.hpp` pair specifically: the `.h` must `#include` the `.hpp` at its end like the other core headers do — this was missing for a while, so the definitions in `.hpp` were never compiled anywhere and silently diverged from their declarations. The `.hpp` also needs its own `#pragma once` (`ear_clipping.hpp` has one too) — without it, an editor opening the `.hpp` directly chokes on the `.hpp` → `.h` → `.hpp` include cycle when building its preamble, even though the cycle is harmless in a real build thanks to the `.h`'s guard. This header also wasn't `#include`d from any `.cpp` for a while, so it was never actually compiled as part of the build (`src/core` is header-only — CMake only compiles headers when something includes them) — `.h`/`.hpp` declaration mismatches went unnoticed by both the compiler and CI, only flagged by the editor's language server. `src/tests/test_monotone_triangulation.cpp` now exercises it directly for this reason.
+- `geometry/ear_clipping.h(.hpp)` — `EarClipping<T>::triangulate()`. On failure to find an ear it retries once with a 10x-relaxed epsilon before giving up. Its debug output should flow through the shared `DebugStep<T>` model (polygon state before the step, added triangles/diagonals, highlighted or removed vertices, description), so the GUI layer is not tied to ear-clipping-only names.
+- `geometry/monotone_triangulation.h(.hpp)` — `MonotoneTriangulation<T>`, the currently active GUI/debug path. `triangulate()` classifies every vertex via `classifyVertex()` (`START`/`END`/`SPLIT`/`MERGE`/`REGULAR`), runs `makeMonotone()` to add diagonals, materializes monotone pieces with `splitIntoMonotone()`, and triangulates each piece while recording shared `DebugStep<T>` history (descriptions, added diagonals, added triangles). In debug builds, `GEO_ASSERT_INVARIANT` (`utils/assert.h`) checks every piece with `isMonotonePiece()` to catch decomposition bugs early.
 - `utils/geometry_predicates.h` — free predicate functions shared by both triangulation algorithms: `orientation`, `onSegment`, `segmentsIntersect`, `isSimplePolygon`, `isConvex`, `pointInTriangle`, `computeXIntersection`, `isAbove`.
 - `utils/assert.h` — `GEO_ASSERT_INVARIANT(cond, msg)`: a debug-only check (no-op when `NDEBUG` is defined) for internal invariants whose failure means a bug in the algorithm, as opposed to bad input.
 
 **`src/gui`** — the Qt application (target `TriangulationLab`, linked against `core`). Core algorithms are never called directly from widgets; everything goes through a facade layer that also does the `QPointF` ⇄ `geo::Point2<double>` conversion:
 
-- `facade/TriangulationFacade` — owns the polygon (`geo::Polygon2<double>`) and the `geo::EarClipping<double>` instance, exposes point-add/remove/close/triangulate operations, and emits Qt signals (`polygonChanged`, `triangulationCompleted`, `debugStepChanged`, etc.) for the widget to react to.
-- `facade/DebugFacade` — wraps a `EarClipping`'s debug history and provides step navigation (`stepForward`/`stepBackward`/`goToStep`), with `currentStep == -1` meaning "before the first cut". `TriangulationFacade` delegates its debugger API to this.
-- `rendering/IRenderer` — abstract drawing interface (`drawPolygon`, `drawTriangles`, `drawVertexLabels`, `drawEarMarker`, `drawGrid`, `drawText`) so `TriangulationWidget` isn't coupled to a specific paint backend. `QPainterRenderer` is the only implementation currently.
+- `facade/TriangulationFacade` — owns the polygon (`geo::Polygon2<double>`), currently keeps both `geo::EarClipping<double>` and `geo::MonotoneTriangulation<double>`, and exposes point-add/remove/close/triangulate operations. For now the working GUI/debug scenario is monotone triangulation first; when editing this layer, prefer algorithm-neutral debug names such as highlighted vertices and added diagonals over ear-clipping-specific terminology.
+- `facade/DebugFacade` — wraps shared triangulation debug history and provides step navigation (`stepForward`/`stepBackward`/`goToStep`), with `currentStep == -1` meaning the initial state before the first recorded step. `TriangulationFacade` delegates its debugger API to this. Prefer neutral concepts such as accumulated triangles, highlighted vertices, and added diagonals.
+- `rendering/IRenderer` — abstract drawing interface (`drawPolygon`, `drawTriangles`, `drawVertexLabels`, vertex highlight drawing, `drawGrid`, `drawText`) so `TriangulationWidget` isn't coupled to a specific paint backend. Keep renderer naming algorithm-neutral: the renderer should know about highlighted vertices, diagonals, and triangles, not about a specific triangulation method. `QPainterRenderer` is the only implementation currently.
 - `widgets/TriangulationWidget` — the canvas: owns a `TriangulationFacade` and an `IRenderer`, handles mouse/keyboard input for building the polygon, and caches facade data for `paintEvent`.
 - `widgets/DebugControlsWidget.h` — currently an empty stub (UI controls for the step debugger not yet implemented).
 - `MainWindow` hosts a single `TriangulationWidget`.
+
+## Current integration notes
+
+- The project is in a transition state from ear-clipping-specific GUI/debug terminology to shared triangulation terminology.
+- In UI/facade/renderer code, prefer names like `highlighted vertices`, `added diagonals`, `added triangles`, and `vertex highlight` over `ear`, `cut triangle`, or other algorithm-specific labels.
+- `DebugStep<T>` is the common transport model between algorithms and GUI. When extending debug visualization, add generic per-step data there first instead of introducing algorithm-specific widget state.
+- `MonotoneTriangulation` should currently be treated as the primary end-to-end GUI/debug path, even if algorithm selection APIs still exist in the facade.
+
+## TODO
+
+- Add focused unit tests for `MonotoneTriangulation`, especially for:
+  - simple monotone polygons;
+  - polygons that require split/merge handling;
+  - validation of triangle count and basic coverage/invariants;
+  - debug-history consistency (`added_diagonals`, `added_triangles`, step descriptions).
+- Revisit the error-handling model across core and facade layers:
+  - define clearer categories for input errors, algorithm failures, and internal invariant violations;
+  - reduce reliance on ad-hoc string messages as the only error contract;
+  - decide which failures should be reported to the user and which should remain developer/debug diagnostics.
 
 ## Conventions
 

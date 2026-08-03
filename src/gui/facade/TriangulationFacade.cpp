@@ -22,6 +22,13 @@ TriangulationFacade::TriangulationFacade(QObject *parent)
 
 TriangulationFacade::~TriangulationFacade() = default;
 
+void TriangulationFacade::setAlgorithm(Algorithm algo) {
+    m_currentAlgorithm = algo;
+    emit statusChanged(algo == Algorithm::EarClipping
+                           ? "Algorithm: Ear Clipping"
+                           : "Algorithm: Monotone");
+}
+
 // ============================================================
 //  Управление полигоном
 // ============================================================
@@ -68,10 +75,10 @@ void TriangulationFacade::closePolygon() {
     return;
   }
 
-  // 1. Приводим к CCW
+  //Приводим к CCW
   geo::ensureCCW(m_polygon);
 
-  // 2. Удаляем коллинеарные точки (критично!)
+  //Удаляем коллинеарные точки (критично!)
   geo::removeCollinearPoints(m_polygon);
 
   if (m_polygon.size() < 3) {
@@ -84,8 +91,12 @@ void TriangulationFacade::closePolygon() {
       QString("Polygon closed with %1 vertices").arg(m_polygon.size()));
   emitPolygonUpdate();
 
-  // 3. Автоматически запускаем триангуляцию
-  triangulateMonotone();
+  // Больше не жёстко "triangulateMonotone()" — смотрим на текущий режим
+  if (m_currentAlgorithm == Algorithm::EarClipping) {
+      triangulateEarClipping();
+  } else {
+      triangulateMonotone();
+  }
 }
 
 // ============================================================
@@ -130,7 +141,7 @@ bool TriangulationFacade::triangulateMonotone() {
 
   // Очищаем старые данные
   m_triangles.clear();
-  // m_monotone->clearDebugHistory();
+  m_monotone->clearDebugHistory();
 
   // Запускаем алгоритм
   auto result = m_monotone->triangulate(m_polygon);
@@ -139,12 +150,12 @@ bool TriangulationFacade::triangulateMonotone() {
     m_triangles = std::move(result.triangles);
 
     // Передаём историю в DebugFacade
-    // m_debugFacade->setHistory(m_earClipping->getDebugHistory());
+    m_debugFacade->setHistory(m_monotone->getDebugHistory());
 
     emitTriangulationUpdate();
     emit statusChanged(QString("Triangulation complete: %1 triangles")
                            .arg(m_triangles.size()));
-    // emit debugStepChanged(getCurrentStep(), getTotalSteps());
+    emit debugStepChanged(getCurrentStep(), getTotalSteps());
     return true;
   } else {
     emit errorOccurred(QString::fromStdString(result.error_message));
@@ -199,7 +210,7 @@ std::vector<QPointF> TriangulationFacade::getDebugPolygon() const {
 
 std::vector<std::array<QPointF, 3>>
 TriangulationFacade::getDebugTriangles() const {
-  auto tris = m_debugFacade->getCutTriangles();
+  auto tris = m_debugFacade->getAccumulatedTriangles();
   std::vector<std::array<QPointF, 3>> result;
   result.reserve(tris.size());
   for (const auto &t : tris) {
@@ -212,8 +223,25 @@ QString TriangulationFacade::getDebugDescription() const {
   return m_debugFacade->getStepDescription();
 }
 
-size_t TriangulationFacade::getDebugEarIndex() const {
-  return m_debugFacade->getEarIndex();
+size_t TriangulationFacade::getDebugHighlightedVertexIndex() const {
+  return m_debugFacade->getHighlightedVertexIndex();
+}
+
+std::vector<size_t> TriangulationFacade::getDebugHighlightedVertices() const {
+    return m_debugFacade->getRemovedVertices();
+}
+
+std::vector<QLineF> TriangulationFacade::getDebugDiagonals() const {
+    auto diagonals = m_debugFacade->getAddedDiagonals();
+
+    std::vector<QLineF> result;
+    result.reserve(diagonals.size());
+
+    for (const auto& d : diagonals) {
+        result.emplace_back(toQPoint(d.first), toQPoint(d.second));
+    }
+
+    return result;
 }
 
 // ============================================================

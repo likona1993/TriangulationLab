@@ -34,52 +34,80 @@ TriangulationWidget::~TriangulationWidget() = default;
 // ============================================================
 
 void TriangulationWidget::paintEvent(QPaintEvent* /*event*/) {
-    // Начинаем кадр
+    // Начинаем новый кадр QPainter.
+    // После beginFrame() renderer готов принимать команды рисования.
     m_renderer->beginFrame();
 
+    // Применяем мировую трансформацию:
+    // масштаб, сдвиг и инверсию оси Y.
     m_renderer->applyTransform();
 
-    // Рисуем сетку (пока пусто)
+    // Рисуем сетку в мировых координатах.
+    // Пока это скорее вспомогательный визуальный фон.
     m_renderer->drawGrid(m_currentBBox);
 
-    // 1. Отладочные треугольники (если режим отладки)
-    if (m_showDebug && !m_debugTriangles.empty()) {
-        m_renderer->drawTriangles(m_debugTriangles, QColor(0, 200, 255), 0.2f, true);
-    }
-
-    // 2. Финальные треугольники (если не режим отладки)
+    // В обычном режиме показываем итоговую триангуляцию целиком.
     if (!m_showDebug && !m_triangles.empty()) {
         m_renderer->drawTriangles(m_triangles, QColor(0, 200, 100), 0.3f, true);
     }
 
-    // 3. Основной полигон
+    // В debug-режиме показываем треугольники, накопленные к текущему шагу.
+    if (m_showDebug && !m_debugTriangles.empty()) {
+        m_renderer->drawTriangles(m_debugTriangles, QColor(0, 200, 255), 0.2f, true);
+    }
+
+    // В debug-режиме дополнительно показываем диагонали,
+    // которые были добавлены на текущем шаге.
+    if (m_showDebug && !m_debugDiagonals.empty()) {
+        m_renderer->drawDiagonals(
+            m_debugDiagonals,
+            QColor(255, 120, 0),
+            2.0f,
+            Qt::DashLine
+            );
+    }
+
+    // Основной пользовательский полигон рисуем всегда,
+    // чтобы не терять исходный контекст.
     if (!m_polygonPoints.empty()) {
         QColor polyColor = m_facade->isPolygonClosed() ? Qt::green : Qt::black;
         m_renderer->drawPolygon(m_polygonPoints, polyColor, 2.0f, false);
     }
 
-    // 4. Отладочный полигон и подсветка уха
+    // В debug-режиме поверх основного полигона рисуем полигон текущего шага.
+    // Для ear clipping это может быть "остаток",
+    // для monotone triangulation — текущий monotone-piece.
     if (m_showDebug && !m_debugPolygon.empty()) {
         m_renderer->drawPolygon(m_debugPolygon, QColor(255, 200, 50), 2.0f, false);
-        size_t earIdx = m_facade->getDebugEarIndex();
-        if (earIdx < m_debugPolygon.size()) {
-            m_renderer->drawEarMarker(m_debugPolygon[earIdx], Qt::red);
+
+        // Подсвечиваем вершины, которые текущий шаг считает важными.
+        // Сейчас это универсальный механизм вместо ear-specific подсветки.
+        const auto highlighted = m_facade->getDebugHighlightedVertices();
+        for (size_t idx : highlighted) {
+            if (idx < m_debugPolygon.size()) {
+                m_renderer->drawVertexHighlight(m_debugPolygon[idx], Qt::red);
+            }
         }
+
+        // Нумерация вершин debug-полигона удобна для проверки индексов.
         m_renderer->drawVertexLabels(m_debugPolygon, Qt::yellow);
     } else {
+        // Если debug-режим выключен, подписываем вершины исходного полигона.
         m_renderer->drawVertexLabels(m_polygonPoints, Qt::black);
     }
 
-    // 5. Информационная строка (в экранных координатах)
+    // Информационную строку рисуем в экранных координатах,
+    // чтобы текст не масштабировался вместе со сценой.
     if (m_showDebug && m_totalSteps > 0) {
         QString info = QString("Step %1 / %2: %3")
         .arg(m_currentStep + 1)
-            .arg(m_totalSteps)
-            .arg(m_facade->getDebugDescription());
+        .arg(m_totalSteps)
+        .arg(m_facade->getDebugDescription());
 
         m_renderer->drawTextScreen(info, QPointF(10, 30));
     }
 
+    // Завершаем кадр.
     m_renderer->endFrame();
 }
 
@@ -101,35 +129,33 @@ void TriangulationWidget::keyPressEvent(QKeyEvent* event) {
         updateWorldBounds();
         m_facade->closePolygon();
         break;
+
     case Qt::Key_Backspace:
         m_facade->removeLastPoint();
         break;
+
     case Qt::Key_C:
         m_facade->clearPolygon();
         m_showDebug = false;
-        break;
-    case Qt::Key_D:
-        m_showDebug = !m_showDebug;
-        if (m_showDebug && m_totalSteps > 0) {
-            m_facade->goToStep(-1);
-        }
-        updateDebugData();
         update();
         break;
+
+    case Qt::Key_D:
+        toggleDebugMode();
+        break;
+
     case Qt::Key_Right:
-        if (m_showDebug) {
-            m_facade->stepForward();
-            updateDebugData();
-            update();
+        if (m_showDebug && m_facade->stepForward()) {
+            refreshDebugView();
         }
         break;
+
     case Qt::Key_Left:
-        if (m_showDebug) {
-            m_facade->stepBackward();
-            updateDebugData();
-            update();
+        if (m_showDebug && m_facade->stepBackward()) {
+            refreshDebugView();
         }
         break;
+
     default:
         QWidget::keyPressEvent(event);
         break;
@@ -187,11 +213,19 @@ void TriangulationWidget::onDebugStepChanged(int currentStep, int totalSteps) {
 
 void TriangulationWidget::updateWorldBounds()
 {
-     // Собираем все точки для вычисления bounding box
+    // Собираем все точки, которые сейчас могут участвовать в отображении.
+    // По ним будет вычислен bounding box для камеры.
     std::vector<QPointF> allPoints = m_polygonPoints;
+
+    // В debug-режиме добавляем точки debug-полигона,
+    // чтобы он тоже гарантированно попадал в видимую область.
     if (m_showDebug && !m_debugPolygon.empty()) {
         allPoints.insert(allPoints.end(), m_debugPolygon.begin(), m_debugPolygon.end());
     }
+
+    // Добавляем вершины финальных треугольников.
+    // Это важно, если триангуляция выходит за текущий bbox исходного полигона
+    // или если мы хотим надёжно учитывать всё, что рисуется на сцене.
     if (!m_triangles.empty()) {
         for (const auto& tri : m_triangles) {
             allPoints.push_back(tri[0]);
@@ -199,6 +233,9 @@ void TriangulationWidget::updateWorldBounds()
             allPoints.push_back(tri[2]);
         }
     }
+
+    // В debug-режиме добавляем и вершины debug-треугольников,
+    // чтобы камера учитывала текущее промежуточное состояние.
     if (!m_debugTriangles.empty()) {
         for (const auto& tri : m_debugTriangles) {
             allPoints.push_back(tri[0]);
@@ -207,11 +244,17 @@ void TriangulationWidget::updateWorldBounds()
         }
     }
 
+    // Вычисляем ограничивающий прямоугольник всех собранных точек.
     m_currentBBox = getBoundingRect(allPoints);
+
+    // Защитный случай: если bbox по какой-то причине пуст,
+    // используем прямоугольник размеров виджета.
     if (m_currentBBox.isEmpty()) {
         m_currentBBox = QRectF(0, 0, width(), height());
     }
-    
+
+    // Передаём renderer новый worldRect и текущий viewport,
+    // чтобы он пересчитал масштаб и смещение камеры.
     QRect viewport(0, 0, width(), height());
     m_renderer->resetView(m_currentBBox, viewport);
 }
@@ -233,8 +276,39 @@ QRectF TriangulationWidget::getBoundingRect(const std::vector<QPointF> &points) 
 }
 
 void TriangulationWidget::updateDebugData() {
+    // Забираем из фасада полигон текущего debug-шага.
     m_debugPolygon = m_facade->getDebugPolygon();
+
+    // Забираем все треугольники, накопленные к текущему шагу.
     m_debugTriangles = m_facade->getDebugTriangles();
+
+    // Забираем диагонали, добавленные на текущем debug-шаге.
+    m_debugDiagonals = m_facade->getDebugDiagonals();
+
+    // Синхронизируем локальные счётчики шага с фасадом.
     m_currentStep = m_facade->getCurrentStep();
     m_totalSteps = m_facade->getTotalSteps();
+}
+
+void TriangulationWidget::refreshDebugView() {
+    updateDebugData();
+    updateWorldBounds();
+    update();
+}
+
+void TriangulationWidget::enterDebugModeFromStart() {
+    m_showDebug = true;
+    if (m_totalSteps > 0) {
+        m_facade->goToStep(-1);
+    }
+    refreshDebugView();
+}
+
+void TriangulationWidget::toggleDebugMode() {
+    m_showDebug = !m_showDebug;
+    if (m_showDebug) {
+        enterDebugModeFromStart();
+    } else {
+        update();
+    }
 }

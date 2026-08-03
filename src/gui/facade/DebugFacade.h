@@ -36,9 +36,11 @@ public:
 
     // Данные текущего шага
     geo::Polygon2<double> getCurrentPolygon() const;
-    std::vector<geo::Triangle2<double>> getCutTriangles() const;
-    geo::Triangle2<double> getLastCutTriangle() const;
-    size_t getEarIndex() const;
+    std::vector<geo::Triangle2<double>> getAccumulatedTriangles() const;
+    std::vector<geo::Triangle2<double>> getLastCutTriangles() const;
+    size_t getHighlightedVertexIndex() const;
+    std::vector<std::pair<geo::Point2<double>, geo::Point2<double>>> getAddedDiagonals() const;
+    std::vector<size_t> getRemovedVertices() const;
     QString getStepDescription() const;
 
 signals:
@@ -49,5 +51,7 @@ private:
     std::vector<geo::DebugStep<double>> m_history;
     int m_currentStep = -1; // -1 = начальное состояние (до первого отрезания)
 };
+
+
 
 } // namespace facade

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <numeric>
+#include <functional>
 
 #include "geometry/triangulation_types.h"
 #include "monotone_triangulation.h"
@@ -37,7 +38,9 @@ template <typename T>
 TriangulationResult<T>
 MonotoneTriangulation<T>::triangulate(const Polygon &polygon) {
 
-  TriangulationResult<T> result;
+
+    TriangulationResult<T> result;
+    history.clear();
 
   if (polygon.size() < 3) {
     result.error_message = "Polygon must have at least 3 vertices";
@@ -150,6 +153,7 @@ bool MonotoneTriangulation<T>::makeMonotone(
 
     DebugStep<T> step;
     step.polygon_before = poly;
+    step.highlighted_vertices.push_back(vi);
     step.description = "Вершина " + std::to_string(vi) + " (" + vertexTypeName(types[vi]) + ")";
     for (size_t k = diagBefore; k < diagonals.size(); ++k) {
         const auto& d = diagonals[k];
@@ -505,13 +509,6 @@ void MonotoneTriangulation<T>::emitTriangle(const Polygon &poly, VertexIndex a,
     out.push_back({poly[a], poly[c], poly[b]});
   else
     out.push_back({poly[a], poly[b], poly[c]});
-
-  //
-  DebugStep<T> step;
-  step.added_triangles.push_back(out.back()); // только что добавленный треугольник
-  step.description = "Кусок: треугольник (" + std::to_string(a) + ", " +
-                     std::to_string(b) + ", " + std::to_string(c) + ")";
-  history.push_back(std::move(step));
 }
 
 template <typename T>
@@ -531,28 +528,22 @@ bool MonotoneTriangulation<T>::triangulateMonotonePiece(
     return isAbove(poly[piece[a]], poly[piece[b]]);
   });
 
-  // Отслеживаем, какие позиции (индексы внутри piece) уже "закрыты"
-  // треугольниками и не входят в оставшийся контур.
-  std::vector<bool> consumed(m, false);
-
-  // Строит polygon_before из ещё не consumed вершин, в порядке piece.
-  auto buildRemaining = [&]() {
-      Polygon remaining;
-      for (size_t i = 0; i < m; ++i)
-          if (!consumed[i])
-              remaining.push_back(poly[piece[i]]);
-      return remaining;
-  };
-
   // Логирует один шаг: только что добавленный треугольник + текущий
   // оставшийся контур (после обновления consumed).
-  auto logStep = [&](VertexIndex a, VertexIndex b, VertexIndex c) {
+  std::function<void(VertexIndex, VertexIndex, VertexIndex)> logStep = [&](VertexIndex a, VertexIndex b, VertexIndex c) {
       DebugStep<T> step;
-      step.polygon_before = buildRemaining();
+
+      step.polygon_before.clear();
+      step.polygon_before.reserve(piece.size());
+      for (VertexIndex idx : piece) {
+          step.polygon_before.push_back(poly[idx]);
+      }
+
       step.added_triangles.push_back(out.back());
       step.description = "Кусок: треугольник (" + std::to_string(a) + ", " +
                          std::to_string(b) + ", " + std::to_string(c) + ")";
       history.push_back(std::move(step));
+  };
 
   // Стек хранит ПОЗИЦИИ внутри piece (не индексы вершин в poly).
   std::vector<size_t> stack{order[0], order[1]};
@@ -562,18 +553,11 @@ bool MonotoneTriangulation<T>::triangulateMonotonePiece(
 
     if (chain[uj] != chain[stack.back()]) {
       // Другая цепь: воронка переключилась — видно весь стек целиком.
-        for (size_t k = stack.size() - 1; k > 0; --k){
-            emitTriangle(poly, piece[uj], piece[stack[k]], piece[stack[k - 1]],
-                         out);
-            for (size_t k = stack.size() - 1; k > 0; --k) {
-                emitTriangle(poly, piece[uj], piece[stack[k]], piece[stack[k - 1]], out);
-                // stack[k] закрывается этим треугольником (кроме stack[0],
-                // который переживает как новая "нижняя" вершина).
-                if (k != 0)
-                    consumed[stack[k]] = true;
-                logStep(piece[uj], piece[stack[k]], piece[stack[k - 1]]);
-            }
+        for (size_t k = stack.size() - 1; k > 0; --k) {
+            emitTriangle(poly, piece[uj], piece[stack[k]], piece[stack[k - 1]], out);
+            logStep(piece[uj], piece[stack[k]], piece[stack[k - 1]]);
         }
+
 
       stack.clear();
       stack.push_back(order[j - 1]); // = старая верхушка стека
@@ -593,8 +577,6 @@ bool MonotoneTriangulation<T>::triangulateMonotonePiece(
           break;
 
         emitTriangle(poly, piece[uj], piece[last], piece[t0], out);
-        // "last" полностью закрыт этим треугольником.
-        consumed[last] = true;
         logStep(piece[uj], piece[last], piece[t0]);
 
         last = t0;
@@ -614,7 +596,6 @@ bool MonotoneTriangulation<T>::triangulateMonotonePiece(
   for (size_t k = 0; k + 1 < stack.size(); ++k)
   {
       emitTriangle(poly, piece[un], piece[stack[k]], piece[stack[k + 1]], out);
-      consumed[stack[k]] = true;
       logStep(piece[un], piece[stack[k]], piece[stack[k + 1]]);
   }
 

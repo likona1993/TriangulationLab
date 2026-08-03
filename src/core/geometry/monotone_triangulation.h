@@ -33,7 +33,9 @@ public:
 
   TriangulationResult<T> triangulate(const Polygon &polygon);
 
-  const std::vector<DebugStep<T>> &getHistory() const { return history; }
+  const std::vector<DebugStep<T>> &getDebugHistory() const { return history; }
+
+  void clearDebugHistory() {history.clear();};
 
 private:
 

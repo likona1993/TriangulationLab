@@ -4,6 +4,7 @@
 #include <vector>
 #include <QPointF>
 #include <array>
+#include <QLineF>
 
 #include "../facade/TriangulationFacade.h"
 #include "../rendering/IRenderer.h"
@@ -46,6 +47,7 @@ private:
 
     std::vector<QPointF> m_debugPolygon;
     std::vector<std::array<QPointF, 3>> m_debugTriangles;
+    std::vector<QLineF> m_debugDiagonals;
     int m_currentStep = -1;
     int m_totalSteps = 0;
     bool m_showDebug = false;
@@ -53,5 +55,10 @@ private:
     // === Вспомогательные методы ===
     void updateWorldBounds();
     QRectF getBoundingRect(const std::vector<QPointF>& points) const;
+    //синхронизация локального кэша виджета с состоянием фасада
     void updateDebugData();
+
+    void refreshDebugView();
+    void enterDebugModeFromStart();
+    void toggleDebugMode();
 };
