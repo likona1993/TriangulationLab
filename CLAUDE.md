@@ -29,6 +29,8 @@ Run the app:
 
 Tests use GoogleTest and live in `src/tests/`, built as the `test_core` binary (covers `src/core` only — there's no GUI/facade test coverage yet).
 
+The current `MonotoneTriangulation` tests cover basic invalid-input handling, convex/concave polygons, result invariants (triangle count, area preservation, non-degenerate triangles, CCW orientation), debug-history reset, and at least one split/merge-style polygon that records added diagonals.
+
 ```sh
 cmake --build build --target test_core -j
 ctest --test-dir build --output-on-failure
@@ -68,11 +70,11 @@ ctest --test-dir build --output-on-failure
 
 ## TODO
 
-- Add focused unit tests for `MonotoneTriangulation`, especially for:
-  - simple monotone polygons;
-  - polygons that require split/merge handling;
-  - validation of triangle count and basic coverage/invariants;
-  - debug-history consistency (`added_diagonals`, `added_triangles`, step descriptions).
+- Expand `MonotoneTriangulation` test coverage beyond the current baseline:
+  - add more targeted split/merge polygons and edge cases;
+  - strengthen debug-history assertions where useful;
+  - consider more pathological inputs (near-collinear vertices, repeated y-levels, narrow monotone pieces);
+  - keep result-level invariants covered: triangle count, area preservation, non-degenerate triangles, CCW output orientation.
 - Revisit the error-handling model across core and facade layers:
   - define clearer categories for input errors, algorithm failures, and internal invariant violations;
   - reduce reliance on ad-hoc string messages as the only error contract;
