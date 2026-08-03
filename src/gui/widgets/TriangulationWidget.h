@@ -18,8 +18,16 @@
 class TriangulationWidget : public QWidget {
     Q_OBJECT
 public:
+
+    enum class Algorithm {
+        EarClipping,
+        Monotone
+    };
+
     explicit TriangulationWidget(QWidget* parent = nullptr);
     ~TriangulationWidget() override;
+
+    void setAlgorithm(Algorithm algorithm);
 
     // Доступ к фасаду (для MainWindow)
     facade::TriangulationFacade* facade() const { return m_facade.get(); }

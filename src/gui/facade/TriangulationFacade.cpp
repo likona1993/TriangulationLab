@@ -24,6 +24,7 @@ TriangulationFacade::~TriangulationFacade() = default;
 
 void TriangulationFacade::setAlgorithm(Algorithm algo) {
     m_currentAlgorithm = algo;
+    clearTriangulation();
     emit statusChanged(algo == Algorithm::EarClipping
                            ? "Algorithm: Ear Clipping"
                            : "Algorithm: Monotone");
@@ -163,6 +164,19 @@ bool TriangulationFacade::triangulateMonotone() {
   }
 
   return false;
+}
+
+void TriangulationFacade::clearTriangulation()
+{
+    m_triangles.clear();
+    m_isClosed = false;
+
+    if (m_debugFacade) {
+        m_debugFacade->clear();
+    }
+
+    emitTriangulationUpdate();
+    emit debugStepChanged(getCurrentStep(), getTotalSteps());
 }
 
 // ============================================================

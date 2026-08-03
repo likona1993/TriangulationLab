@@ -48,6 +48,7 @@ public:
     // ==================== Триангуляция ====================
     bool triangulateEarClipping(); // Явный вызов (если нужен)
     bool triangulateMonotone();
+    void clearTriangulation();
 
     // ==================== Получение данных ====================
     std::vector<QPointF> getPolygonPoints() const;
@@ -90,7 +91,7 @@ public:
     bool m_isClosed = false;
 
     // Алгоритмы
-    Algorithm m_currentAlgorithm = Algorithm::Monotone; // текущее поведение по умолчанию
+    Algorithm m_currentAlgorithm = Algorithm::EarClipping; // текущее поведение по умолчанию
     std::unique_ptr<geo::EarClipping<double>> m_earClipping;
     std::unique_ptr<geo::MonotoneTriangulation<double>> m_monotone;
 

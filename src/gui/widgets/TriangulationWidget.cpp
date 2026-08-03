@@ -29,6 +29,18 @@ TriangulationWidget::TriangulationWidget(QWidget* parent)
 
 TriangulationWidget::~TriangulationWidget() = default;
 
+void TriangulationWidget::setAlgorithm(Algorithm algorithm)
+{
+    switch (algorithm) {
+    case Algorithm::EarClipping:
+        m_facade->setAlgorithm(facade::TriangulationFacade::Algorithm::EarClipping);
+        break;
+    case Algorithm::Monotone:
+        m_facade->setAlgorithm(facade::TriangulationFacade::Algorithm::Monotone);
+        break;
+    }
+}
+
 // ============================================================
 //  Рендеринг
 // ============================================================

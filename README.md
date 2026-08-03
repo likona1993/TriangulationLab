@@ -1,15 +1,16 @@
 # Triangulation Lab
 
-A Qt desktop app for interactively visualizing 2D polygon triangulation algorithms. Draw a polygon by hand and watch the ear-clipping algorithm cut it into triangles step by step.
+A Qt desktop app for interactively visualizing 2D polygon triangulation algorithms. Draw a polygon by hand and triangulate it with different algorithms through a unified GUI.
 
 ## Features
 
 - Draw arbitrary polygons with the mouse
-- Triangulate via the ear-clipping algorithm
-- Step-by-step debugger showing each ear cut, with the current ear vertex and remaining polygon highlighted
+- Switch between triangulation algorithms in the GUI
+- Triangulate polygons with ear clipping and monotone triangulation
+- Step-by-step debugger built around a shared triangulation debug model
 - Rendering abstracted behind an `IRenderer` interface (currently backed by `QPainter`)
 
-Monotone-polygon triangulation is planned but not yet implemented.
+At the moment, the monotone triangulation path is the primary end-to-end GUI/debug scenario, while the algorithm-switching flow is being generalized across the UI and facade layers.
 
 ## Controls
 
@@ -21,6 +22,7 @@ Monotone-polygon triangulation is planned but not yet implemented.
 | Clear polygon | C |
 | Toggle step-by-step debugger | D |
 | Step forward / backward (in debugger) | Right / Left arrow |
+| Select triangulation algorithm | GUI combo box |
 
 ## Requirements
 
@@ -55,10 +57,10 @@ To run a single test:
 
 ## Project layout
 
-```
+```text
 src/core/    Qt-independent, template-based geometry library (points, polygons, triangulation algorithms)
 src/gui/     Qt Widgets application (facades, rendering, widgets)
 src/tests/   GoogleTest unit tests for src/core
 ```
 
-See `CLAUDE.md` for a more detailed architecture overview.
+See `CLAUDE.md` for a more detailed architecture overview.подтверждаю
