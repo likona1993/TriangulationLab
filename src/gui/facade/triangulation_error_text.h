@@ -24,6 +24,8 @@ inline QString errorText(geo::ErrorCode code) {
         return QStringLiteral("Monotone triangulation failed");
     case ErrorCode::InvariantViolation:
         return QStringLiteral("Internal invariant violation");
+    case geo::ErrorCode::InitialTriangulationFailed:
+        return QStringLiteral("Initial triangulation failed");
     case ErrorCode::Unknown:
     default:
         return QStringLiteral("Unknown error");

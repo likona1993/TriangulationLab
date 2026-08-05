@@ -37,6 +37,7 @@ template <typename T> struct Point2 {
 //  Типы-алиасы
 // ============================================================
 template <typename T> using Polygon2 = std::vector<Point2<T>>;
+template <typename T> using Points2 = std::vector<Point2<T>>;
 
 template <typename T> struct Triangle2 {
   Point2<T> v0, v1, v2;
@@ -46,6 +47,8 @@ template <typename T> struct Triangle2 {
 
   std::array<Point2<T>, 3> asArray() const;
 };
+
+template <typename T> void ensureCCW(Triangle2<T>& tri);
 
 // ============================================================
 //  Функции работы с полигонами

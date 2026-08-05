@@ -10,6 +10,8 @@ inline QString toString(geo::TriangulationAlgorithm algo) {
         return QStringLiteral("Ear Clipping");
     case geo::TriangulationAlgorithm::Monotone:
         return QStringLiteral("Monotone");
+    case geo::TriangulationAlgorithm::DelaunayFlip:
+        return QStringLiteral("Delanuay flipping");
     }
     return QStringLiteral("Unknown");
 }

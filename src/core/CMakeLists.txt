@@ -13,6 +13,8 @@ add_library(core STATIC
     utils/assert.h
     geometry/triangulation_error.h
     geometry/triangulation_algorithm.h
+    geometry/delanuay_flip.h
+    geometry/delaunay_flip.hpp
 )
 
 # Включаемые директории

@@ -84,6 +84,14 @@ std::array<Point2<T>, 3> Triangle2<T>::asArray() const {
     return {v0, v1, v2};
 }
 
+template<typename T>
+void ensureCCW(Triangle2<T>& tri) {
+    Polygon2<T> poly = {tri.v0, tri.v1, tri.v2};
+    if (signedArea2D(poly) < T(0)) {
+        std::swap(tri.v1, tri.v2);
+    }
+}
+
 // ============================================================
 //  Функции работы с полигонами
 // ============================================================

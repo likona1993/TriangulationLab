@@ -22,6 +22,7 @@ enum class ErrorCode {
     MonotoneDecompositionFailed,
     MonotonePieceTriangulationFailed,
     InvariantViolation,
+    InitialTriangulationFailed,
     Unknown
 };
 
