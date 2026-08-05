@@ -10,7 +10,7 @@
 #include "geometry/monotone_triangulation.h"
 #include "geometry/types.h"
 #include "geometry/triangulation_algorithm.h"
-#include "geometry/delanuay_flip.h"
+#include "geometry/delaunay_flip.h"
 
 // Forward declaration для DebugFacade (чтобы не тянуть заголовок везде)
 namespace facade {

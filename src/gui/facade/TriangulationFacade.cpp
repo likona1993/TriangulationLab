@@ -137,8 +137,10 @@ bool TriangulationFacade::triangulate() {
             break;
         case geo::TriangulationAlgorithm::Monotone:
             history = m_monotone->getDebugHistory();
+            break;
         case geo::TriangulationAlgorithm::DelaunayFlip:
             history = m_delaunayFlip->getDebugHistory();
+            break;
         }
 
         m_debugFacade->setHistory(history);

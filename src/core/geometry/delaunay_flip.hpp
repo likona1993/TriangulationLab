@@ -1,7 +1,8 @@
 #pragma once
-#include "delanuay_flip.h"
+#include "delaunay_flip.h"
 
 #include "ear_clipping.h"
+#include "monotone_triangulation.h"
 #include "utils/geometry_predicates.h"
 
 namespace geo{
@@ -39,7 +40,7 @@ TriangulationResult<T> DelaunayFlip<T>::triangulate(const Points& input)
 
         flipEdge(illegalEdge->tri1, illegalEdge->tri2, illegalEdge->edge);
         rebuildEdgeMap();
-        recordFlipStep(*illegalEdge);
+        //recordFlipStep(*illegalEdge);
     }
 
     result.triangles = exportTriangles();
@@ -61,9 +62,9 @@ std::optional<size_t> DelaunayFlip<T>::indexOfPoint(const Point& p) const
 template <typename T>
 bool DelaunayFlip<T>::buildInitialTriangulation()
 {
-    geo::EarClipping<T> earClipping;
-    auto result = earClipping.triangulate(m_points);
-    m_history = earClipping.getDebugHistory();
+    geo::EarClipping<T> initial_algo;
+    auto result = initial_algo.triangulate(m_points);
+    m_history = initial_algo.getDebugHistory();
 
     if (!result) {
         return false;
@@ -198,9 +199,17 @@ bool DelaunayFlip<T>::isIllegalEdge(size_t tri1, size_t tri2, const Edge& edge) 
     const auto c = m_points[*opposite1];
     const auto d = m_points[*opposite2];
 
-    // TODO может потенциально обрабатывать не все случаи
-    if (orientation(a, b, c) * orientation(a, b, d) > T(0)) {
+    const int o1 = orientation(a, b, c);
+    const int o2 = orientation(a, b, d);
+
+    if (o1 == 0 || o2 == 0 || o1 == o2) {
         return false;
+    }
+
+    // Важно: inCircumcircle зависит от ориентации (a,b,c).
+    // Чтобы знак был корректным, приводим треугольник abc к CCW.
+    if (o1 == 1) {
+        return inCircumcircle(a, c, b, d);
     }
 
     return inCircumcircle(a, b, c, d);
@@ -246,6 +255,12 @@ void DelaunayFlip<T>::flipEdge(size_t tri1, size_t tri2, const Edge& edge)
 
     m_triangles[tri1] = new1;
     m_triangles[tri2] = new2;
+
+    DebugStep<T> step;
+    step.description = "Flip illegal edge";
+    step.added_diagonals.emplace_back(m_points[edge.from], m_points[edge.to]);
+    step.added_triangles = exportTriangles();
+    m_history.push_back(step);
 }
 
 template<typename T>

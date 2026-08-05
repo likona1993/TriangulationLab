@@ -13,6 +13,7 @@ add_executable(test_core
     test_ear_clipping.cpp
     test_geometry_predicates.cpp
     test_monotone_triangulation.cpp
+    test_delaunay_flip.cpp
 )
 
 # Линкуем с целями GTest
