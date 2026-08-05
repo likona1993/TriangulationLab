@@ -69,7 +69,7 @@ template <typename T> bool isSimplePolygon(const Polygon2<T> &poly, T eps) {
 // ============================================================
 template <typename T>
 bool isConvex(const Point2<T> &prev, const Point2<T> &curr,
-              const Point2<T> &next, T eps) {
+              const Point2<T> &next, T eps = EPSILON<T>) {
   const Point2<T> v1 = curr - prev;
   const Point2<T> v2 = next - curr;
   const T cross = v1.cross(v2);
@@ -81,7 +81,7 @@ bool isConvex(const Point2<T> &prev, const Point2<T> &curr,
 // ============================================================
 template <typename T>
 bool pointInTriangle(const Point2<T> &p, const Point2<T> &a, const Point2<T> &b,
-                     const Point2<T> &c, T eps) {
+                     const Point2<T> &c, T eps = EPSILON<T>) {
   const T d1 = (p - a).cross(b - a);
   const T d2 = (p - b).cross(c - b);
   const T d3 = (p - c).cross(a - c);
@@ -97,7 +97,7 @@ bool pointInTriangle(const Point2<T> &p, const Point2<T> &a, const Point2<T> &b,
 // ============================================================
 template <typename T>
 int orientation(const Point2<T> &p, const Point2<T> &q, const Point2<T> &r,
-                T eps) {
+                T eps = EPSILON<T>) {
   const T val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y);
   if (isZero(val, eps))
     return 0;

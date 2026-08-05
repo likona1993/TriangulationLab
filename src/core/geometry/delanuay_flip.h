@@ -53,6 +53,7 @@ private:
     bool isIllegalEdge(size_t tri1, size_t tri2, const Edge& edge) const;
     void flipEdge(size_t tri1, size_t tri2, const Edge& edge);
     void normalizeTriangle(TriangleRef& tri) const;
+    void recordFlipStep(const IllegalEdgeInfo& info);
 
     Triangles exportTriangles() const;
 };

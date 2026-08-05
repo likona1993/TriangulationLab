@@ -20,11 +20,6 @@ class TriangulationWidget : public QWidget {
     Q_OBJECT
 public:
 
-    enum class Algorithm {
-        EarClipping,
-        Monotone
-    };
-
     explicit TriangulationWidget(QWidget* parent = nullptr);
     ~TriangulationWidget() override;
 

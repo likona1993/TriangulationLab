@@ -10,6 +10,7 @@
 #include "geometry/monotone_triangulation.h"
 #include "geometry/types.h"
 #include "geometry/triangulation_algorithm.h"
+#include "geometry/delanuay_flip.h"
 
 // Forward declaration для DebugFacade (чтобы не тянуть заголовок везде)
 namespace facade {
@@ -45,8 +46,7 @@ public:
     void closePolygon(); // Замыкает и запускает триангуляцию
 
     // ==================== Триангуляция ====================
-    bool triangulateEarClipping(); // Явный вызов (если нужен)
-    bool triangulateMonotone();
+    bool triangulate();
     void clearTriangulation();
 
     // ==================== Получение данных ====================
@@ -93,6 +93,7 @@ public:
     geo::TriangulationAlgorithm m_currentAlgorithm = geo::TriangulationAlgorithm::EarClipping; // текущее поведение по умолчанию
     std::unique_ptr<geo::EarClipping<double>> m_earClipping;
     std::unique_ptr<geo::MonotoneTriangulation<double>> m_monotone;
+    std::unique_ptr<geo::DelaunayFlip<double>> m_delaunayFlip;
 
     // Дебаггер (отдельный фасад)
     std::unique_ptr<DebugFacade> m_debugFacade;

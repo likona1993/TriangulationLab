@@ -6,6 +6,8 @@
 #include <QComboBox>
 #include <QToolBar>
 
+#include "../core/geometry/triangulation_algorithm.h"
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent) {
     setWindowTitle("Triangulation Lab");
@@ -32,8 +34,9 @@ MainWindow::MainWindow(QWidget *parent)
     toolBar->setMovable(false);
 
     auto* combo = new QComboBox(this);
-    combo->addItem("Ear clipping", static_cast<int>(TriangulationWidget::Algorithm::EarClipping));
-    combo->addItem("Monotone", static_cast<int>(TriangulationWidget::Algorithm::Monotone));
+    combo->addItem("Ear clipping", static_cast<int>(geo::TriangulationAlgorithm::EarClipping));
+    combo->addItem("Monotone", static_cast<int>(geo::TriangulationAlgorithm::Monotone));
+    combo->addItem("Delaunay Flip", static_cast<int>(geo::TriangulationAlgorithm::DelaunayFlip));
 
     toolBar->addWidget(combo);
 

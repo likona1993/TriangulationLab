@@ -15,6 +15,7 @@ TriangulationFacade::TriangulationFacade(QObject *parent)
     : QObject(parent),
       m_earClipping(std::make_unique<geo::EarClipping<double>>()),
       m_monotone(std::make_unique<geo::MonotoneTriangulation<double>>()),
+      m_delaunayFlip(std::make_unique<geo::DelaunayFlip<double>>()),
       m_debugFacade(std::make_unique<DebugFacade>(this)) {
   // Подключаем сигналы от DebugFacade, чтобы пробросить их наружу
   connect(m_debugFacade.get(), &DebugFacade::stepChanged, this,
@@ -93,77 +94,63 @@ void TriangulationFacade::closePolygon() {
       QString("Polygon closed with %1 vertices").arg(m_polygon.size()));
   emitPolygonUpdate();
 
-  if (m_currentAlgorithm == geo::TriangulationAlgorithm::EarClipping) {
-      triangulateEarClipping();
-  } else {
-      triangulateMonotone();
-  }
+  triangulate();
 }
 
 // ============================================================
 //  Триангуляция
 // ============================================================
 
-bool TriangulationFacade::triangulateEarClipping() {
-  if (!m_isClosed || m_polygon.size() < 3) {
-    emit errorOccurred(gui::errorText(geo::ErrorCode::NotEnoughVertices));
-    return false;
-  }
+bool TriangulationFacade::triangulate() {
+    if (!m_isClosed || m_polygon.size() < 3) {
+        emit errorOccurred(gui::errorText(geo::ErrorCode::NotEnoughVertices));
+        return false;
+    }
 
-  // Очищаем старые данные
-  m_triangles.clear();
-  m_earClipping->clearDebugHistory();
+    // Очищаем старые данные
+    m_triangles.clear();
 
-  // Запускаем алгоритм
-  auto result = m_earClipping->triangulate(m_polygon);
+    // Запускаем алгоритм
+    geo::TriangulationResult<double> result;
+    switch (m_currentAlgorithm)
+    {
+    case geo::TriangulationAlgorithm::EarClipping:
+        result = m_earClipping->triangulate(m_polygon);
+        break;
+    case geo::TriangulationAlgorithm::Monotone:
+        result = m_monotone->triangulate(m_polygon);
+    case geo::TriangulationAlgorithm::DelaunayFlip:
+        result = m_delaunayFlip->triangulate(m_polygon);
+    }
 
-  if (bool(result)) {
-    m_triangles = std::move(result.triangles);
+    if (bool(result)) {
+        m_triangles = std::move(result.triangles);
 
-    // Передаём историю в DebugFacade
-    m_debugFacade->setHistory(m_earClipping->getDebugHistory());
+        // Передаём историю в DebugFacade
+        std::vector<geo::DebugStep<double>> history;
+        switch (m_currentAlgorithm)
+        {
+        case geo::TriangulationAlgorithm::EarClipping:
+            history = m_earClipping->getDebugHistory();
+            break;
+        case geo::TriangulationAlgorithm::Monotone:
+            history = m_monotone->getDebugHistory();
+        case geo::TriangulationAlgorithm::DelaunayFlip:
+            history = m_delaunayFlip->getDebugHistory();
+        }
 
-    emitTriangulationUpdate();
-    emit statusChanged(QString("Triangulation complete: %1 triangles")
-                           .arg(m_triangles.size()));
-    emit debugStepChanged(getCurrentStep(), getTotalSteps());
-    return true;
-  } else {
-    emit errorOccurred(gui::errorText(result.error->code));
-    return false;
-  }
-}
+        m_debugFacade->setHistory(history);
 
-bool TriangulationFacade::triangulateMonotone() {
-  if (!m_isClosed || m_polygon.size() < 3) {
-    emit errorOccurred(gui::errorText(geo::ErrorCode::NotEnoughVertices));
-    return false;
-  }
 
-  // Очищаем старые данные
-  m_triangles.clear();
-  m_monotone->clearDebugHistory();
-
-  // Запускаем алгоритм
-  auto result = m_monotone->triangulate(m_polygon);
-
-  if (result) {
-    m_triangles = std::move(result.triangles);
-
-    // Передаём историю в DebugFacade
-    m_debugFacade->setHistory(m_monotone->getDebugHistory());
-
-    emitTriangulationUpdate();
-    emit statusChanged(QString("Triangulation complete: %1 triangles")
-                           .arg(m_triangles.size()));
-    emit debugStepChanged(getCurrentStep(), getTotalSteps());
-    return true;
-  } else {
-    emit errorOccurred(gui::errorText(result.error->code));
-    return false;
-  }
-
-  return false;
+        emitTriangulationUpdate();
+        emit statusChanged(QString("Triangulation complete: %1 triangles")
+                               .arg(m_triangles.size()));
+        emit debugStepChanged(getCurrentStep(), getTotalSteps());
+        return true;
+    } else {
+        emit errorOccurred(gui::errorText(result.error->code));
+        return false;
+    }
 }
 
 void TriangulationFacade::clearTriangulation()

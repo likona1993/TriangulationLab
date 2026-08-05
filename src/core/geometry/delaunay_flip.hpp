@@ -1,6 +1,8 @@
+#pragma once
 #include "delanuay_flip.h"
 
 #include "ear_clipping.h"
+#include "utils/geometry_predicates.h"
 
 namespace geo{
 template <typename T>
@@ -61,6 +63,7 @@ bool DelaunayFlip<T>::buildInitialTriangulation()
 {
     geo::EarClipping<T> earClipping;
     auto result = earClipping.triangulate(m_points);
+    m_history = earClipping.getDebugHistory();
 
     if (!result) {
         return false;
@@ -70,7 +73,6 @@ bool DelaunayFlip<T>::buildInitialTriangulation()
     m_triangles.reserve(result.triangles.size());
 
     for (auto tri : result.triangles) {
-        ensureCCW(tri);
 
         auto ia = indexOfPoint(tri.v0);
         auto ib = indexOfPoint(tri.v1);
@@ -84,6 +86,8 @@ bool DelaunayFlip<T>::buildInitialTriangulation()
         ref.a = *ia;
         ref.b = *ib;
         ref.c = *ic;
+
+        normalizeTriangle(ref);
 
         m_triangles.push_back(ref);
     }
@@ -199,6 +203,101 @@ bool DelaunayFlip<T>::isIllegalEdge(size_t tri1, size_t tri2, const Edge& edge) 
     }
 
     return inCircumcircle(a, b, c, d);
+}
+
+template<typename T>
+void DelaunayFlip<T>::normalizeTriangle(TriangleRef& tri) const
+{
+    Triangle2<T> tmp{ m_points[tri.a], m_points[tri.b], m_points[tri.c] };
+    ensureCCW(tmp);
+
+    auto i0 = indexOfPoint(tmp.v0);
+    auto i1 = indexOfPoint(tmp.v1);
+    auto i2 = indexOfPoint(tmp.v2);
+
+    if (!i0 || !i1 || !i2) {
+        return;
+    }
+
+    tri.a = *i0;
+    tri.b = *i1;
+    tri.c = *i2;
+}
+
+template<typename T>
+void DelaunayFlip<T>::flipEdge(size_t tri1, size_t tri2, const Edge& edge)
+{
+    const auto& t1 = m_triangles[tri1];
+    const auto& t2 = m_triangles[tri2];
+
+    auto o1 = oppositeVertex(t1, edge);
+    auto o2 = oppositeVertex(t2, edge);
+
+    if (!o1.has_value() || !o2.has_value()) {
+        return;
+    }
+
+    TriangleRef new1{ *o1, *o2, edge.from };
+    TriangleRef new2{ *o2, *o1, edge.to };
+
+    normalizeTriangle(new1);
+    normalizeTriangle(new2);
+
+    m_triangles[tri1] = new1;
+    m_triangles[tri2] = new2;
+}
+
+template<typename T>
+void DelaunayFlip<T>::recordFlipStep(const IllegalEdgeInfo& info)
+{
+    DebugStep<T> step;
+    step.description = "Flip illegal edge";
+
+    const auto& t1 = m_triangles[info.tri1];
+    const auto& t2 = m_triangles[info.tri2];
+
+    auto o1 = oppositeVertex(t1, info.edge);
+    auto o2 = oppositeVertex(t2, info.edge);
+
+    if (!o1.has_value() || !o2.has_value()) {
+        m_history.push_back(std::move(step));
+        return;
+    }
+
+    const Point& a = m_points[*o1];
+    const Point& b = m_points[*o2];
+    const Point& c = m_points[info.edge.from];
+    const Point& d = m_points[info.edge.to];
+
+    step.added_diagonals.emplace_back(a, b);
+    step.added_triangles.emplace_back(a, b, c);
+    step.added_triangles.emplace_back(a, b, d);
+
+    step.highlighted_vertices = {
+        info.edge.from,
+        info.edge.to,
+        *o1,
+        *o2
+    };
+
+    m_history.push_back(std::move(step));
+}
+
+template<typename T>
+typename DelaunayFlip<T>::Triangles DelaunayFlip<T>::exportTriangles() const
+{
+    Triangles result;
+    result.reserve(m_triangles.size());
+
+    for (const auto& tri : m_triangles) {
+        result.emplace_back(
+            m_points[tri.a],
+            m_points[tri.b],
+            m_points[tri.c]
+            );
+    }
+
+    return result;
 }
 
 
