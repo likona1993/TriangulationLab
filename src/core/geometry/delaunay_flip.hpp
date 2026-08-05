@@ -198,6 +198,7 @@ bool DelaunayFlip<T>::isIllegalEdge(size_t tri1, size_t tri2, const Edge& edge) 
     const auto c = m_points[*opposite1];
     const auto d = m_points[*opposite2];
 
+    // TODO может потенциально обрабатывать не все случаи
     if (orientation(a, b, c) * orientation(a, b, d) > T(0)) {
         return false;
     }
