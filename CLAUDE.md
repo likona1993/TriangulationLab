@@ -92,6 +92,22 @@ ctest --test-dir build --output-on-failure
   - consider more pathological inputs (near-collinear vertices, repeated y-levels, narrow monotone pieces);
   - keep result-level invariants covered: triangle count, area preservation, non-degenerate triangles, CCW output orientation.
 
+  ## Roadmap: point cloud triangulation (2D → 3D)
+
+Long-term goal: triangulation of a 3D point cloud. Planned algorithm sequence, each stage builds on the previous one's data structures/intuition:
+
+1. **Delaunay triangulation 2D, flip-based** — start from an existing triangulation (e.g. the current `EarClipping` output) and legalize it via edge flips using the in-circle test. Introduces the core Delaunay concept (locally optimal edge) without new spatial data structures.
+2. **Delaunay triangulation 2D, incremental (Bowyer–Watson)** — insert points one at a time, find conflicting triangles, retriangulate the cavity. This is the algorithm that generalizes almost directly to 3D in stage 5.
+3. **Delaunay triangulation 2D, divide & conquer** — recursive split of points, merge two sub-triangulations along a separating line/chain. Non-randomized O(n log n) alternative.
+4. **Constrained Delaunay Triangulation (CDT) 2D** — Delaunay triangulation that must respect a given set of mandatory edges (polygon boundary/sharp features). Bridges "triangulate a polygon" (ear clipping / monotone) and "triangulate a free point set" (Delaunay).
+5. **Delaunay tetrahedralization 3D (Bowyer–Watson in 3D)** — same incremental insertion algorithm as stage 2, generalized: circumcircle → circumsphere, triangles → tetrahedra, star-shaped cavity retriangulation. This is the direct target for the point-cloud goal.
+6. **Surface extraction from 3D Delaunay (alpha shapes / surface reconstruction)** — filtering step to recover the actual object surface from the tetrahedralization, since raw 3D Delaunay of a point cloud is a solid (often near-convex-hull) tetrahedral mesh, not yet a surface mesh.
+
+Notes:
+- `geo::TriangulationAlgorithm` will need new enum values as each stage lands (e.g. `DelaunayFlip`, `DelaunayIncremental`, `DelaunayDivideConquer`, `ConstrainedDelaunay`, `DelaunayTetrahedralization3D`).
+- Stages 1–4 stay within the existing 2D `geo::Point2<T>`/`geo::Polygon2<T>` core; stage 5–6 will likely need new 3D primitives (`geo::Point3<T>`, `Tetrahedron<T>`) and probably a new core sub-namespace, kept Qt-independent like the rest of `src/core`.
+- Currently in progress: **stage 1, flip-based Delaunay 2D**.
+
 
 ## Conventions
 
