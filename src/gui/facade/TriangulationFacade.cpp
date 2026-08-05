@@ -119,8 +119,10 @@ bool TriangulationFacade::triangulate() {
         break;
     case geo::TriangulationAlgorithm::Monotone:
         result = m_monotone->triangulate(m_polygon);
+        break;
     case geo::TriangulationAlgorithm::DelaunayFlip:
         result = m_delaunayFlip->triangulate(m_polygon);
+        break;
     }
 
     if (bool(result)) {
