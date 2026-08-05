@@ -87,15 +87,31 @@ ctest --test-dir build --output-on-failure
 - `DelaunayFlip` is now part of the unified GUI/facade workflow: the algorithm selector, facade dispatch, and shared debug history should treat it as a first-class option alongside the existing triangulation algorithms.
 - Keep `DelaunayFlip` API-neutral: core code should expose triangulation and debug history only, while all GUI wording stays algorithm-neutral where possible.
 
-## TODO
 
-- Expand `MonotoneTriangulation` test coverage beyond the current baseline:
-  - add more targeted split/merge polygons and edge cases;
-  - strengthen debug-history assertions where useful;
-  - consider more pathological inputs (near-collinear vertices, repeated y-levels, narrow monotone pieces);
-  - keep result-level invariants covered: triangle count, area preservation, non-degenerate triangles, CCW output orientation.
+### TODO
 
-  ## Roadmap: point cloud triangulation (2D → 3D)
+- **Expand test coverage for `MonotoneTriangulation`** — this is still the main end-to-end path, so it is the first area to strengthen.  
+  - add more targeted polygons with split/merge vertices;
+  - cover edge cases such as near-collinear points, repeated `y` levels, and narrow monotone pieces;
+  - strengthen debug-history assertions where they help catch regressions;
+  - keep the core result invariants covered: triangle count, area preservation, non-degenerate triangles, and CCW orientation.
+
+- **Add stronger tests for `DelaunayFlip`** — the current checks still miss some bugs, so the scenarios and invariants need to be tightened.  
+  - add more varied input polygons and cases with fragile local retriangulation;
+  - verify not only successful triangulation, but also meaningful result properties and debug history;
+  - include scenarios that previously triggered regressions or unstable flip chains.
+
+- **Adapt debug-history rendering for `DelaunayFlip`** — the visualization should match the way this algorithm records and presents steps.  
+  - verify that the relevant history elements are shown: triangles, diagonals, and highlighted vertices;
+  - remove assumptions left over from ear-clipping-specific logic where they still exist;
+  - make sure the debug steps are consistent with how `DelaunayFlip` records them now.
+
+- **Keep the 3D point-cloud triangulation roadmap in focus** — this is the long-term goal, and it naturally builds in stages.  
+  - next step: 2D Delaunay via edge flips;
+  - then incremental 2D Delaunay (Bowyer–Watson);
+  - after that, constrained Delaunay and finally 3D tetrahedralization.
+
+## Roadmap: point cloud triangulation (2D → 3D)
 
 Long-term goal: triangulation of a 3D point cloud. Planned algorithm sequence, each stage builds on the previous one's data structures/intuition:
 
