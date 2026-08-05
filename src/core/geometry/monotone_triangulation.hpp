@@ -49,12 +49,7 @@ MonotoneTriangulation<T>::triangulate(const Polygon &polygon) {
 
   const T eps = EPSILON<T>;
   if (!isSimplePolygon(polygon, eps)) {
-    result.error = makeError(
-          ErrorCategory::Input,
-          ErrorCode::SelfIntersectingPolygon,
-          "Polygon failed simplicity check",
-          TriangulationAlgorithm::EarClipping
-          );;
+      result.error = makeSelfIntersectingPolygonError(geo::TriangulationAlgorithm::Monotone);
     return result;
   }
   // конец дублированного блока

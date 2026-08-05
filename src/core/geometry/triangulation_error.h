@@ -50,6 +50,15 @@ inline TriangulationError makeNotEnoughVerticesError(geo::TriangulationAlgorithm
     };
 }
 
+inline TriangulationError makeSelfIntersectingPolygonError(geo::TriangulationAlgorithm algorithm) {
+    return TriangulationError{
+        ErrorCategory::Input,
+        ErrorCode::SelfIntersectingPolygon,
+        "Input polygon size < 3",
+        std::move(algorithm)
+    };
+}
+
 } // namespace geo
 
 

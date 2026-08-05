@@ -50,12 +50,7 @@ TriangulationResult<T> EarClipping<T>::triangulate(const Polygon2<T>& input, T e
     }
 
     if (!isSimplePolygon(input, eps)) {
-        result.error =  makeError(
-            ErrorCategory::Input,
-            ErrorCode::SelfIntersectingPolygon,
-            "Polygon failed simplicity check",
-            TriangulationAlgorithm::EarClipping
-            );
+        result.error =  makeSelfIntersectingPolygonError(TriangulationAlgorithm::EarClipping);
         return result;
     }
 
