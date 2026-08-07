@@ -40,7 +40,6 @@ TriangulationResult<T> DelaunayFlip<T>::triangulate(const Points& input)
 
         flipEdge(illegalEdge->tri1, illegalEdge->tri2, illegalEdge->edge);
         rebuildEdgeMap();
-        //recordFlipStep(*illegalEdge);
     }
 
     result.triangles = exportTriangles();
@@ -137,27 +136,8 @@ DelaunayFlip<T>::findIllegalEdge() const
 
     return std::nullopt;
 }
-//TODO - нужно ли перенести в geometry_predicates
-template <typename T>
-bool inCircumcircle(const geo::Point2<T>& a,
-                    const geo::Point2<T>& b,
-                    const geo::Point2<T>& c,
-                    const geo::Point2<T>& d)
-{
-    T ax = a.x - d.x;
-    T ay = a.y - d.y;
-    T bx = b.x - d.x;
-    T by = b.y - d.y;
-    T cx = c.x - d.x;
-    T cy = c.y - d.y;
 
-    T det =
-        (ax * ax + ay * ay) * (bx * cy - by * cx) -
-        (bx * bx + by * by) * (ax * cy - ay * cx) +
-        (cx * cx + cy * cy) * (ax * by - ay * bx);
 
-    return det > T(0);
-}
 
 template <typename T>
 std::optional<size_t> DelaunayFlip<T>::oppositeVertex(const TriangleRef& tri, const Edge& edge) const
@@ -263,41 +243,7 @@ void DelaunayFlip<T>::flipEdge(size_t tri1, size_t tri2, const Edge& edge)
     m_history.push_back(step);
 }
 
-template<typename T>
-void DelaunayFlip<T>::recordFlipStep(const IllegalEdgeInfo& info)
-{
-    DebugStep<T> step;
-    step.description = "Flip illegal edge";
 
-    const auto& t1 = m_triangles[info.tri1];
-    const auto& t2 = m_triangles[info.tri2];
-
-    auto o1 = oppositeVertex(t1, info.edge);
-    auto o2 = oppositeVertex(t2, info.edge);
-
-    if (!o1.has_value() || !o2.has_value()) {
-        m_history.push_back(std::move(step));
-        return;
-    }
-
-    const Point& a = m_points[*o1];
-    const Point& b = m_points[*o2];
-    const Point& c = m_points[info.edge.from];
-    const Point& d = m_points[info.edge.to];
-
-    step.added_diagonals.emplace_back(a, b);
-    step.added_triangles.emplace_back(a, b, c);
-    step.added_triangles.emplace_back(a, b, d);
-
-    step.highlighted_vertices = {
-        info.edge.from,
-        info.edge.to,
-        *o1,
-        *o2
-    };
-
-    m_history.push_back(std::move(step));
-}
 
 template<typename T>
 typename DelaunayFlip<T>::Triangles DelaunayFlip<T>::exportTriangles() const

@@ -147,4 +147,28 @@ static bool isAbove(const Point2<T> &a, const Point2<T> &b) {
   return a.x < b.x;
 }
 
+// ============================================================
+// проверяет, лежит ли точка d в окружности, описанной около abc
+// ============================================================
+template <typename T>
+bool inCircumcircle(const geo::Point2<T>& a,
+                    const geo::Point2<T>& b,
+                    const geo::Point2<T>& c,
+                    const geo::Point2<T>& d)
+{
+    T ax = a.x - d.x;
+    T ay = a.y - d.y;
+    T bx = b.x - d.x;
+    T by = b.y - d.y;
+    T cx = c.x - d.x;
+    T cy = c.y - d.y;
+
+    T det =
+        (ax * ax + ay * ay) * (bx * cy - by * cx) -
+        (bx * bx + by * by) * (ax * cy - ay * cx) +
+        (cx * cx + cy * cy) * (ax * by - ay * bx);
+
+    return det > T(0);
+}
+
 } // namespace geo

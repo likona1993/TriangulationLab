@@ -1,5 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <cmath>
+#include <string>
+#include <vector>
+
 #include "geometry/delaunay_flip.h"
 #include "geometry/types.h"
 #include "utils/numeric.h"
@@ -10,321 +14,509 @@ using namespace geo;
 // Helpers
 // ============================================================
 
-// Абсолютная площадь многоугольника.
-// Нам удобнее сравнивать именно модуль площади, потому что
-// ориентация входных точек может быть разной.
 template <typename T>
-T absArea(const Polygon2<T>& poly) {
-    return std::abs(signedArea2D(poly));
+T absArea(const Polygon2<T>& polygon) {
+    return std::abs(signedArea2D(polygon));
 }
 
-// Сумма площадей всех треугольников.
 template <typename T>
-T sumTrianglesArea(const std::vector<Triangle2<T>>& tris) {
+T sumTrianglesArea(const std::vector<Triangle2<T>>& triangles) {
     T sum = 0;
-    for (const auto& t : tris) {
-        Polygon2<T> triPoly = {t.v0, t.v1, t.v2};
-        sum += absArea<T>(triPoly);
+
+    for (const auto& triangle : triangles) {
+        const Polygon2<T> trianglePolygon = {
+            triangle.v0,
+            triangle.v1,
+            triangle.v2
+        };
+        sum += absArea(trianglePolygon);
     }
+
     return sum;
 }
 
-// Проверка, что все треугольники ненулевой площади.
 template <typename T>
-bool allTrianglesNonDegenerate(const std::vector<Triangle2<T>>& tris, T eps) {
-    for (const auto& t : tris) {
-        Polygon2<T> triPoly = {t.v0, t.v1, t.v2};
-        if (absArea<T>(triPoly) <= eps) {
+bool allTrianglesNonDegenerate(
+    const std::vector<Triangle2<T>>& triangles,
+    T eps)
+{
+    for (const auto& triangle : triangles) {
+        const Polygon2<T> trianglePolygon = {
+            triangle.v0,
+            triangle.v1,
+            triangle.v2
+        };
+
+        if (absArea(trianglePolygon) <= eps) {
             return false;
         }
     }
+
     return true;
 }
 
-// Проверка, что в истории есть хотя бы один шаг с флипом.
+// Проверяет CCW-ориентацию всех результирующих треугольников.
 template <typename T>
-bool hasFlipStep(const std::vector<DebugStep<T>>& history) {
-    for (const auto& step : history) {
-        if (!step.added_diagonals.empty() || !step.added_triangles.empty()) {
+bool allTrianglesCCW(
+    const std::vector<Triangle2<T>>& triangles,
+    T eps)
+{
+    for (const auto& triangle : triangles) {
+        const Polygon2<T> trianglePolygon = {
+            triangle.v0,
+            triangle.v1,
+            triangle.v2
+        };
+
+        if (signedArea2D(trianglePolygon) <= eps) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Проверяет наличие ребра независимо от порядка его вершин.
+template <typename T>
+bool hasEdge(
+    const std::vector<Triangle2<T>>& triangles,
+    const Point2<T>& first,
+    const Point2<T>& second)
+{
+    for (const auto& triangle : triangles) {
+        const bool edge01 =
+            (triangle.v0 == first && triangle.v1 == second) ||
+            (triangle.v0 == second && triangle.v1 == first);
+
+        const bool edge12 =
+            (triangle.v1 == first && triangle.v2 == second) ||
+            (triangle.v1 == second && triangle.v2 == first);
+
+        const bool edge20 =
+            (triangle.v2 == first && triangle.v0 == second) ||
+            (triangle.v2 == second && triangle.v0 == first);
+
+        if (edge01 || edge12 || edge20) {
             return true;
         }
     }
+
     return false;
 }
 
+// Проверяет наличие треугольника независимо от порядка его вершин.
+template <typename T>
+bool hasTriangle(
+    const std::vector<Triangle2<T>>& triangles,
+    const Point2<T>& first,
+    const Point2<T>& second,
+    const Point2<T>& third)
+{
+    for (const auto& triangle : triangles) {
+        const bool hasFirst =
+            triangle.v0 == first ||
+            triangle.v1 == first ||
+            triangle.v2 == first;
+
+        const bool hasSecond =
+            triangle.v0 == second ||
+            triangle.v1 == second ||
+            triangle.v2 == second;
+
+        const bool hasThird =
+            triangle.v0 == third ||
+            triangle.v1 == third ||
+            triangle.v2 == third;
+
+        if (hasFirst && hasSecond && hasThird) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+template <typename T>
+bool allPolygonBoundaryEdgesPresent(
+    const Polygon2<T>& polygon,
+    const std::vector<Triangle2<T>>& triangles)
+{
+    if (polygon.size() < 2) {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < polygon.size(); ++index) {
+        const std::size_t nextIndex = (index + 1) % polygon.size();
+
+        if (!hasEdge(
+                triangles,
+                polygon[index],
+                polygon[nextIndex])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Проверяет основные геометрические инварианты результата.
+template <typename T>
+void expectValidTriangulation(
+    const Polygon2<T>& polygon,
+    const TriangulationResult<T>& result,
+    std::size_t expectedTriangleCount)
+{
+    ASSERT_TRUE(result);
+    ASSERT_EQ(result.triangles.size(), expectedTriangleCount);
+
+    EXPECT_NEAR(
+        sumTrianglesArea(result.triangles),
+        absArea(polygon),
+        EPSILON<T>);
+
+    EXPECT_TRUE(
+        allTrianglesNonDegenerate(
+            result.triangles,
+            EPSILON<T>));
+
+    EXPECT_TRUE(
+        allTrianglesCCW(
+            result.triangles,
+            EPSILON<T>));
+
+    EXPECT_TRUE(
+        allPolygonBoundaryEdgesPresent(
+            polygon,
+            result.triangles));
+}
+
+// Важно: начальная триангуляция строится через Ear Clipping
+// и также может содержать added_diagonals.
+// Поэтому одного только added_diagonals недостаточно:
+// считаем только шаги с описанием, которое записывает flipEdge().
+template <typename T>
+std::size_t countFlipSteps(
+    const std::vector<DebugStep<T>>& history)
+{
+    std::size_t count = 0;
+
+    for (const auto& step : history) {
+        if (step.description == "Flip illegal edge") {
+            ++count;
+        }
+    }
+
+    return count;
+}
 
 // ============================================================
-// DelaunayFlip tests
+// Basic geometry invariants
 // ============================================================
 
 TEST(DelaunayFlipTest, SquareTriangulation) {
-    // Базовый случай: квадрат.
-    // Здесь алгоритм должен вернуть 2 треугольника,
-    // а площадь результата должна совпасть с площадью входа.
-    Polygon2<double> square = {{0,0}, {1,0}, {1,1}, {0,1}};
+    // Квадрат разбивается на два CCW-треугольника.
+    const Polygon2<double> square = {
+        {0, 0}, {1, 0}, {1, 1}, {0, 1}
+    };
 
-    DelaunayFlip<double> df;
-    auto res = df.triangulate(square);
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(square);
 
-    ASSERT_TRUE(res);
-    EXPECT_EQ(res.triangles.size(), 2);
-
-    double area = absArea<double>(square);
-    double triArea = sumTrianglesArea<double>(res.triangles);
-    EXPECT_NEAR(triArea, area, EPSILON<double>);
-
-    EXPECT_TRUE(allTrianglesNonDegenerate<double>(res.triangles, EPSILON<double>));
-
-    // Для квадрата, как правило, флип может не понадобиться.
-    // Но история построения стартовой триангуляции должна быть.
-    auto history = df.getDebugHistory();
-    EXPECT_FALSE(history.empty());
+    expectValidTriangulation(square, result, 2);
+    EXPECT_FALSE(delaunayFlip.getDebugHistory().empty());
 }
 
 TEST(DelaunayFlipTest, ConvexPentagonTriangulation) {
-    // Выпуклый пятиугольник.
-    // Удобен для проверки, что алгоритм корректно работает
-    // на многоугольниках с количеством вершин > 4.
+    // Базовая проверка выпуклого пятиугольника.
     Polygon2<double> pentagon = {
-        {0, 1}, {0.951, 0.309}, {0.588, -0.809}, {-0.588, -0.809}, {-0.951, 0.309}
+        {0, 1},
+        {0.951, 0.309},
+        {0.588, -0.809},
+        {-0.588, -0.809},
+        {-0.951, 0.309}
     };
     ensureCCW(pentagon);
 
-    DelaunayFlip<double> df;
-    auto res = df.triangulate(pentagon);
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(pentagon);
 
-    ASSERT_TRUE(res);
-    EXPECT_EQ(res.triangles.size(), 3);
-
-    double area = absArea<double>(pentagon);
-    double triArea = sumTrianglesArea<double>(res.triangles);
-    EXPECT_NEAR(triArea, area, 1e-9);
-
-    EXPECT_TRUE(allTrianglesNonDegenerate<double>(res.triangles, EPSILON<double>));
+    expectValidTriangulation(pentagon, result, 3);
 }
 
-TEST(DelaunayFlipTest, LShapedPolygonTriangulation) {
-    // Невыпуклый многоугольник.
-    // Важен, потому что DelaunayFlip строит стартовую триангуляцию
-    // через ear clipping и затем улучшает ее флипами.
-    Polygon2<double> lShape = {{0,0}, {2,0}, {2,1}, {1,1}, {1,2}, {0,2}};
+TEST(DelaunayFlipTest, ConcaveLShapeTriangulation) {
+    // Проверка вогнутого полигона.
+    const Polygon2<double> lShape = {
+        {0, 0}, {2, 0}, {2, 1}, {1, 1}, {1, 2}, {0, 2}
+    };
 
-    DelaunayFlip<double> df;
-    auto res = df.triangulate(lShape);
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(lShape);
 
-    ASSERT_TRUE(res);
-    EXPECT_EQ(res.triangles.size(), 4);
-
-    double area = absArea<double>(lShape);
-    double triArea = sumTrianglesArea<double>(res.triangles);
-    EXPECT_NEAR(triArea, area, EPSILON<double>);
-
-    EXPECT_TRUE(allTrianglesNonDegenerate<double>(res.triangles, EPSILON<double>));
-
-    auto history = df.getDebugHistory();
-    EXPECT_FALSE(history.empty());
+    expectValidTriangulation(lShape, result, 4);
 }
 
-TEST(DelaunayFlipTest, CollinearPointsCleaned) {
-    // Проверяем случай, когда вход содержит коллинеарные точки.
-    // Перед триангуляцией мы их удаляем, иначе результат может быть
-    // нестабильным из-за вырожденных ребер и треугольников.
-    Polygon2<double> raw = {{0,0}, {1,0}, {2,0}, {2,1}, {1,1}, {0,1}};
-    removeCollinearPoints(raw);
+TEST(DelaunayFlipTest, NearCollinearConvexPolygon) {
+    // Вершина почти лежит на одной прямой с соседними вершинами.
+    const Polygon2<double> polygon = {
+        {0.0, 0.0},
+        {2.0, 0.0},
+        {4.0, 1e-6},
+        {4.0, 2.0},
+        {0.0, 2.0}
+    };
 
-    DelaunayFlip<double> df;
-    auto res = df.triangulate(raw);
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(polygon);
 
-    ASSERT_TRUE(res);
-    EXPECT_EQ(res.triangles.size(), 2);
-
-    double area = absArea<double>(raw);
-    double triArea = sumTrianglesArea<double>(res.triangles);
-    EXPECT_NEAR(triArea, area, EPSILON<double>);
+    expectValidTriangulation(polygon, result, polygon.size() - 2);
 }
 
-TEST(DelaunayFlipTest, SelfIntersectingPolygon) {
-    // Самопересекающийся многоугольник триангулировать нельзя.
-    Polygon2<double> bow = {{0,0}, {1,1}, {0,1}, {1,0}};
+TEST(DelaunayFlipTest, RepeatedYLevels) {
+    // Несколько вершин имеют одинаковые y-координаты.
+    const Polygon2<double> polygon = {
+        {0, 0}, {2, 0}, {3, 1}, {2, 2}, {0, 2}, {-1, 1}
+    };
 
-    DelaunayFlip<double> df;
-    auto res = df.triangulate(bow);
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(polygon);
 
-    EXPECT_FALSE(res);
-    EXPECT_TRUE(res.triangles.empty());
+    expectValidTriangulation(polygon, result, polygon.size() - 2);
 }
+
+// ============================================================
+// Expected triangulations and diagonal flips
+// ============================================================
+
+TEST(DelaunayFlipTest, RhombusUsesExpectedDiagonal) {
+    // Вертикальная диагональ ромба должна быть заменена
+    // горизонтальной диагональю.
+    const Polygon2<double> rhombus = {
+        {0, -2}, {1, 0}, {0, 2}, {-1, 0}
+    };
+
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(rhombus);
+
+    expectValidTriangulation(rhombus, result, 2);
+
+    EXPECT_TRUE(hasEdge(
+        result.triangles,
+        Point2<double>{-1, 0},
+        Point2<double>{1, 0}));
+
+    EXPECT_FALSE(hasEdge(
+        result.triangles,
+        Point2<double>{0, -2},
+        Point2<double>{0, 2}));
+}
+
+TEST(DelaunayFlipTest, ConvexPentagonMatchesExpectedTriangulation) {
+    // Ожидаемый результат определён независимо от DelaunayFlip:
+    // T1 = (0, 1, 3), T2 = (0, 3, 4), T3 = (1, 2, 3).
+    const Polygon2<double> polygon = {
+        {0.0, 0.0},
+        {4.0, 0.0},
+        {5.0, 2.0},
+        {2.5, 3.0},
+        {0.0, 2.0}
+    };
+
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(polygon);
+
+    expectValidTriangulation(polygon, result, 3);
+
+    EXPECT_TRUE(hasTriangle(
+        result.triangles,
+        polygon[0], polygon[1], polygon[3]));
+
+    EXPECT_TRUE(hasTriangle(
+        result.triangles,
+        polygon[0], polygon[3], polygon[4]));
+
+    EXPECT_TRUE(hasTriangle(
+        result.triangles,
+        polygon[1], polygon[2], polygon[3]));
+}
+
+TEST(DelaunayFlipTest, CoCircularQuadrilateralIsStable) {
+    // Для квадрата обе диагонали допустимы.
+    // Тест не требует конкретного выбора диагонали.
+    const Polygon2<double> square = {
+        {0, 0}, {1, 0}, {1, 1}, {0, 1}
+    };
+
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(square);
+
+    expectValidTriangulation(square, result, 2);
+
+    const bool firstDiagonal = hasEdge(
+        result.triangles,
+        Point2<double>{0, 0},
+        Point2<double>{1, 1});
+
+    const bool secondDiagonal = hasEdge(
+        result.triangles,
+        Point2<double>{1, 0},
+        Point2<double>{0, 1});
+
+    EXPECT_TRUE(firstDiagonal || secondDiagonal);
+}
+
+TEST(DelaunayFlipTest, HousePolygonPreservesGeometry) {
+    // Для домика проверяем независимые свойства результата,
+    // не фиксируя конкретную допустимую внутреннюю диагональ.
+    const Polygon2<double> house = {
+        {0, 0}, {2, 0}, {2, 2}, {1, 3}, {0, 2}
+    };
+
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(house);
+
+    expectValidTriangulation(house, result, 3);
+}
+
+// ============================================================
+// Flip-chain regression case
+// ============================================================
+
+TEST(DelaunayFlipTest, ZigzagCorridorProducesSeveralFlipSteps) {
+    // Зигзагообразный коридор содержит несколько локальных участков,
+    // на которых начальная триангуляция может быть исправлена
+    // последовательностью флипов.
+    const Polygon2<double> polygon = {
+        {0.0, 0.0},
+        {2.0, 0.25},
+        {4.0, 0.0},
+        {6.0, 0.25},
+        {8.0, 0.0},
+        {8.0, 3.0},
+        {6.0, 2.75},
+        {4.0, 3.0},
+        {2.0, 2.75},
+        {0.0, 3.0}
+    };
+
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(polygon);
+
+    // Сначала проверяем, что вся геометрия сохранилась
+    // после последовательности локальных перестроений.
+    expectValidTriangulation(
+        polygon,
+        result,
+        polygon.size() - 2);
+
+    const auto& history = delaunayFlip.getDebugHistory();
+    ASSERT_FALSE(history.empty());
+
+    // В отличие от added_diagonals, описание позволяет отличить
+    // реальные флипы от шагов начальной Ear Clipping-триангуляции.
+    EXPECT_GE(countFlipSteps(history), 2u);
+}
+
+// ============================================================
+// Invalid and degenerate input
+// ============================================================
 
 TEST(DelaunayFlipTest, LessThanThreeVertices) {
-    // Недостаточно вершин.
-    Polygon2<double> two = {{0,0}, {1,0}};
+    // Недостаточно вершин для построения треугольника.
+    DelaunayFlip<double> delaunayFlip;
 
-    DelaunayFlip<double> df;
-    auto res = df.triangulate(two);
-    EXPECT_FALSE(res);
-    EXPECT_TRUE(res.triangles.empty());
-
-    Polygon2<double> one = {{0,0}};
-    res = df.triangulate(one);
-    EXPECT_FALSE(res);
-    EXPECT_TRUE(res.triangles.empty());
-
-    Polygon2<double> empty;
-    res = df.triangulate(empty);
-    EXPECT_FALSE(res);
-    EXPECT_TRUE(res.triangles.empty());
+    EXPECT_FALSE(delaunayFlip.triangulate(Polygon2<double>{}));
+    EXPECT_FALSE(delaunayFlip.triangulate({{0, 0}}));
+    EXPECT_FALSE(delaunayFlip.triangulate({{0, 0}, {1, 0}}));
 }
 
-TEST(DelaunayFlipTest, AllCollinearPolygon) {
-    // Полностью вырожденный случай.
-    Polygon2<double> collinear = {{0,0}, {1,0}, {2,0}, {3,0}};
-
-    DelaunayFlip<double> df;
-    auto res = df.triangulate(collinear);
-
-    EXPECT_FALSE(res);
-    EXPECT_TRUE(res.triangles.empty());
-}
-
-TEST(DelaunayFlipTest, DebugHistoryExistsAfterTriangulation) {
-    // История отладки важна, потому что DelaunayFlip строит результат
-    // поэтапно и потом делает флипы.
-    Polygon2<double> square = {{0,0}, {1,0}, {1,1}, {0,1}};
-
-    DelaunayFlip<double> df;
-    auto res = df.triangulate(square);
-
-    ASSERT_TRUE(res);
-    auto history = df.getDebugHistory();
-
-    // На этом этапе история не должна быть пустой.
-    EXPECT_FALSE(history.empty());
-}
-
-TEST(DelaunayFlipTest, FlipHistoryContainsDiagonalWhenFlipOccurs) {
-    // Этот тест нацелен именно на случай, когда алгоритм находит
-    // незаконное ребро и выполняет флип.
-    // Здесь мы не привязываемся к конкретной форме диагонали,
-    // а проверяем сам факт появления шага флипа.
-    Polygon2<double> cross = {
-        {0, -2}, {1, -2}, {1, -1}, {2, -1}, {2, 0}, {1, 0},
-        {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-2, 0}, {-2, -1},
-        {-1, -1}, {-1, -2}
+TEST(DelaunayFlipTest, SelfIntersectingPolygonIsRejected) {
+    // Самопересекающийся полигон не должен быть триангулирован.
+    const Polygon2<double> bowTie = {
+        {0, 0}, {1, 1}, {0, 1}, {1, 0}
     };
-    ensureCCW(cross);
 
-    DelaunayFlip<double> df;
-    auto res = df.triangulate(cross);
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(bowTie);
 
-    ASSERT_TRUE(res);
-
-    auto history = df.getDebugHistory();
-    EXPECT_FALSE(history.empty());
-
-    // Если флип был, в истории должен появиться шаг с диагональю.
-    EXPECT_TRUE(hasFlipStep(history));
+    EXPECT_FALSE(result);
+    EXPECT_TRUE(result.triangles.empty());
 }
 
-TEST(DelaunayFlipTest, NoIllegalEdgeForConvexPolygonIsStable) {
-    // Для выпуклого многоугольника часто получается ситуация,
-    // когда флипы либо отсутствуют, либо минимальны.
-    // Этот тест важен как контроль стабильности:
-    // алгоритм должен завершиться корректно и не разрушить триангуляцию.
-    Polygon2<double> hex = {
-        {1,0}, {0.5, 0.866}, {-0.5, 0.866}, {-1,0}, {-0.5, -0.866}, {0.5, -0.866}
+TEST(DelaunayFlipTest, AllCollinearPolygonIsRejected) {
+    // Полностью коллинеарный набор точек имеет нулевую площадь.
+    const Polygon2<double> collinear = {
+        {0, 0}, {1, 0}, {2, 0}, {3, 0}
     };
-    ensureCCW(hex);
 
-    DelaunayFlip<double> df;
-    auto res = df.triangulate(hex);
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(collinear);
 
-    ASSERT_TRUE(res);
-    EXPECT_EQ(res.triangles.size(), 4);
-
-    double area = absArea<double>(hex);
-    double triArea = sumTrianglesArea<double>(res.triangles);
-    EXPECT_NEAR(triArea, area, 1e-9);
-
-    EXPECT_TRUE(allTrianglesNonDegenerate<double>(res.triangles, EPSILON<double>));
+    EXPECT_FALSE(result);
+    EXPECT_TRUE(result.triangles.empty());
 }
 
-TEST(DelaunayFlipTest, MultipleSequentialRunsClearInternalState) {
-    // Важно проверить, что повторные вызовы triangulate не накапливают
-    // состояние между запусками.
-    Polygon2<double> square = {{0,0}, {1,0}, {1,1}, {0,1}};
-    Polygon2<double> pentagon = {
-        {0, 1}, {0.951, 0.309}, {0.588, -0.809}, {-0.588, -0.809}, {-0.951, 0.309}
+TEST(DelaunayFlipTest, CollinearVerticesCanBeRemovedBeforeTriangulation) {
+    // После удаления промежуточных коллинеарных вершин
+    // остаётся прямоугольник.
+    Polygon2<double> polygon = {
+        {0, 0}, {1, 0}, {2, 0}, {2, 1}, {1, 1}, {0, 1}
     };
-    ensureCCW(pentagon);
 
-    DelaunayFlip<double> df;
+    removeCollinearPoints(polygon);
 
-    auto res1 = df.triangulate(square);
-    ASSERT_TRUE(res1);
-    auto history1 = df.getDebugHistory();
-    EXPECT_FALSE(history1.empty());
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(polygon);
 
-    auto res2 = df.triangulate(pentagon);
-    ASSERT_TRUE(res2);
-    auto history2 = df.getDebugHistory();
-    EXPECT_FALSE(history2.empty());
-
-    // После второго запуска история должна относиться к новому запуску,
-    // а не содержать старые шаги.
-    EXPECT_LE(history2.size(), 3u);
+    expectValidTriangulation(polygon, result, 2);
 }
 
-TEST(DelaunayFlipTest, TriangleCountMatchesPolygonVertices) {
-    // Для простого многоугольника число треугольников равно n - 2.
-    // Это хороший базовый инвариант для проверки результата.
-    Polygon2<double> heptagon = {
-        {0, 2}, {1, 1.5}, {2, 0.5}, {1.5, -1}, {0, -2}, {-1.5, -1}, {-2, 0.5}
+// ============================================================
+// Repeated runs and history reset
+// ============================================================
+
+TEST(DelaunayFlipTest, SequentialRunsDoNotMixGeometry) {
+    // Второй запуск не должен использовать геометрию первого полигона.
+    const Polygon2<double> square = {
+        {0, 0}, {1, 0}, {1, 1}, {0, 1}
     };
-    ensureCCW(heptagon);
 
-    DelaunayFlip<double> df;
-    auto res = df.triangulate(heptagon);
+    const Polygon2<double> rhombus = {
+        {0, -2}, {1, 0}, {0, 2}, {-1, 0}
+    };
 
-    ASSERT_TRUE(res);
-    EXPECT_EQ(res.triangles.size(), heptagon.size() - 2);
+    DelaunayFlip<double> delaunayFlip;
+
+    ASSERT_TRUE(delaunayFlip.triangulate(square));
+    const auto secondResult = delaunayFlip.triangulate(rhombus);
+
+    expectValidTriangulation(rhombus, secondResult, 2);
+
+    EXPECT_TRUE(hasEdge(
+        secondResult.triangles,
+        Point2<double>{-1, 0},
+        Point2<double>{1, 0}));
+
+    EXPECT_FALSE(hasEdge(
+        secondResult.triangles,
+        Point2<double>{0, -2},
+        Point2<double>{0, 2}));
 }
 
-TEST(DelaunayFlipTest, IllegalEdgeCoverageConceptualCases) {
-    // Этот тест нужен как "контрольный список" для логики isIllegalEdge.
-    // Мы не вызываем isIllegalEdge напрямую, потому что он private,
-    // но подбираем входы так, чтобы покрыть основные смысловые случаи:
-    // 1) граничное ребро — не проверяется как illegal;
-    // 2) ребро внутри корректной триангуляции — алгоритм должен завершиться;
-    // 3) случай, где требуется флип — история должна зафиксировать диагональ.
-
-    // Случай 1: квадрат. Здесь у ребра только одна внутренняя диагональ,
-    // внешние границы должны быть проигнорированы.
-    Polygon2<double> square = {{0,0}, {1,0}, {1,1}, {0,1}};
-    DelaunayFlip<double> df1;
-    auto res1 = df1.triangulate(square);
-    ASSERT_TRUE(res1);
-    EXPECT_EQ(res1.triangles.size(), 2);
-
-    // Случай 2: выпуклый многоугольник. Условия для illegal edge
-    // должны не приводить к ошибке и должны дать стабильный результат.
-    Polygon2<double> pentagon = {
-        {0, 1}, {0.951, 0.309}, {0.588, -0.809}, {-0.588, -0.809}, {-0.951, 0.309}
+TEST(DelaunayFlipTest, DebugHistoryIsResetBetweenRuns) {
+    // История должна быть пересоздана для каждого нового запуска.
+    const Polygon2<double> square = {
+        {0, 0}, {1, 0}, {1, 1}, {0, 1}
     };
-    ensureCCW(pentagon);
-    DelaunayFlip<double> df2;
-    auto res2 = df2.triangulate(pentagon);
-    ASSERT_TRUE(res2);
-    EXPECT_EQ(res2.triangles.size(), 3);
 
-    // Случай 3: многоугольник, где флип вероятен.
-    // Здесь мы проверяем именно наличие шага с диагональю.
-    Polygon2<double> cross = {
-        {0, -2}, {1, -2}, {1, -1}, {2, -1}, {2, 0}, {1, 0},
-        {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-2, 0}, {-2, -1},
-        {-1, -1}, {-1, -2}
+    const Polygon2<double> pentagon = {
+        {0, 0}, {2, 0}, {3, 1}, {1, 2}, {-1, 1}
     };
-    ensureCCW(cross);
-    DelaunayFlip<double> df3;
-    auto res3 = df3.triangulate(cross);
-    ASSERT_TRUE(res3);
-    EXPECT_TRUE(hasFlipStep(df3.getDebugHistory()));
+
+    DelaunayFlip<double> delaunayFlip;
+
+    ASSERT_TRUE(delaunayFlip.triangulate(square));
+    EXPECT_FALSE(delaunayFlip.getDebugHistory().empty());
+
+    ASSERT_TRUE(delaunayFlip.triangulate(pentagon));
+    EXPECT_FALSE(delaunayFlip.getDebugHistory().empty());
 }

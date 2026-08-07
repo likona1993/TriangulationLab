@@ -200,3 +200,58 @@ TEST(IsAboveTest, SameYTieBreaksOnSmallerX) {
     EXPECT_TRUE(isAbove(a, b));
     EXPECT_FALSE(isAbove(b, a));
 }
+
+// ============================================================================
+// inCircumcircle
+// ============================================================================
+
+TEST(InCircumcircleTest, PointStrictlyInside) {
+    // Triangle: (0, 0), (4, 0), (0, 4).
+    // Its circumcenter is (2, 2), radius is sqrt(8).
+    Point2<double> a(0, 0), b(4, 0), c(0, 4);
+    Point2<double> d(2, 2);
+
+    EXPECT_TRUE(inCircumcircle(a, b, c, d));
+}
+
+TEST(InCircumcircleTest, PointStrictlyOutside) {
+    Point2<double> a(0, 0), b(4, 0), c(0, 4);
+    Point2<double> d(5, 5);
+
+    EXPECT_FALSE(inCircumcircle(a, b, c, d));
+}
+
+TEST(InCircumcircleTest, PointOnCircumcircle) {
+    // Point (4, 4) lies on the circumcircle:
+    // distance from (2, 2) is sqrt(8).
+    Point2<double> a(0, 0), b(4, 0), c(0, 4);
+    Point2<double> d(4, 4);
+
+    EXPECT_FALSE(inCircumcircle(a, b, c, d));
+}
+
+TEST(InCircumcircleTest, TriangleVertexIsOnCircumcircle) {
+    Point2<double> a(0, 0), b(4, 0), c(0, 4);
+
+    EXPECT_FALSE(inCircumcircle(a, b, c, a));
+    EXPECT_FALSE(inCircumcircle(a, b, c, b));
+    EXPECT_FALSE(inCircumcircle(a, b, c, c));
+}
+
+TEST(InCircumcircleTest, NearInsidePoint) {
+    Point2<double> a(0, 0), b(4, 0), c(0, 4);
+
+    // Point is very close to the circle, but still inside.
+    Point2<double> d(3.999999, 3.999999);
+
+    EXPECT_TRUE(inCircumcircle(a, b, c, d));
+}
+
+TEST(InCircumcircleTest, NearOutsidePoint) {
+    Point2<double> a(0, 0), b(4, 0), c(0, 4);
+
+    // Point is very close to the circle, but outside.
+    Point2<double> d(4.000001, 4.000001);
+
+    EXPECT_FALSE(inCircumcircle(a, b, c, d));
+}

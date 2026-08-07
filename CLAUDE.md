@@ -96,11 +96,6 @@ ctest --test-dir build --output-on-failure
   - strengthen debug-history assertions where they help catch regressions;
   - keep the core result invariants covered: triangle count, area preservation, non-degenerate triangles, and CCW orientation.
 
-- **Add stronger tests for `DelaunayFlip`** — the current checks still miss some bugs, so the scenarios and invariants need to be tightened.  
-  - add more varied input polygons and cases with fragile local retriangulation;
-  - verify not only successful triangulation, but also meaningful result properties and debug history;
-  - include scenarios that previously triggered regressions or unstable flip chains.
-
 - **Adapt debug-history rendering for `DelaunayFlip`** — the visualization should match the way this algorithm records and presents steps.  
   - verify that the relevant history elements are shown: triangles, diagonals, and highlighted vertices;
   - remove assumptions left over from ear-clipping-specific logic where they still exist;
