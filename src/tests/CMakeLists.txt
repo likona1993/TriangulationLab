@@ -58,6 +58,11 @@ target_compile_options(test_debug_facade PRIVATE
 
 add_test(NAME test_debug_facade COMMAND test_debug_facade)
 
+# Бенчмарк DelaunayFlip (ROADMAP.md, Этап 0): не входит в ctest,
+# запускается вручную — bench_delaunay [n1 n2 ...]
+add_executable(bench_delaunay bench_delaunay.cpp)
+target_link_libraries(bench_delaunay core)
+
 # Тесты для GUI (опционально, с Qt Test)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Test)
 if(Qt${QT_VERSION_MAJOR}_Test_FOUND)

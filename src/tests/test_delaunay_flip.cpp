@@ -1,11 +1,13 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <map>
 #include <string>
 #include <vector>
 
 #include "geometry/delaunay_flip.h"
 #include "geometry/types.h"
+#include "utils/geometry_predicates.h"
 #include "utils/numeric.h"
 
 using namespace geo;
@@ -159,6 +161,122 @@ bool allPolygonBoundaryEdgesPresent(
     return true;
 }
 
+// ---------------------------------------------------------------
+//  Инварианты Этапа 0 (ROADMAP.md): независимые проверки результата
+// ---------------------------------------------------------------
+
+// Ключ ребра по координатам вершин, порядок вершин нормализован.
+struct CoordEdge {
+    Point2<double> a;
+    Point2<double> b;
+};
+
+bool pointLess(const Point2<double>& l, const Point2<double>& r) {
+    if (l.x != r.x) return l.x < r.x;
+    return l.y < r.y;
+}
+
+bool operator<(const CoordEdge& l, const CoordEdge& r) {
+    if (l.a != r.a) return pointLess(l.a, r.a);
+    return pointLess(l.b, r.b);
+}
+
+CoordEdge makeCoordEdge(const Point2<double>& p, const Point2<double>& q) {
+    return pointLess(p, q) ? CoordEdge{p, q} : CoordEdge{q, p};
+}
+
+// Каждая вершина входного полигона должна встретиться хотя бы в одном
+// треугольнике результата.
+bool allVerticesCovered(
+    const Polygon2<double>& polygon,
+    const std::vector<Triangle2<double>>& triangles)
+{
+    for (const auto& v : polygon) {
+        bool found = false;
+        for (const auto& t : triangles) {
+            if (t.v0 == v || t.v1 == v || t.v2 == v) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) return false;
+    }
+    return true;
+}
+
+// Рёбра триангуляции не должны пересекаться иначе как в общих вершинах.
+// Квадратичная проверка: для больших входов (>= ~1k треугольников) её
+// стоит пропускать ради времени прогона.
+bool noEdgeIntersections(const std::vector<Triangle2<double>>& triangles) {
+    struct Segment {
+        Point2<double> p;
+        Point2<double> q;
+    };
+
+    std::vector<Segment> segments;
+    segments.reserve(triangles.size() * 3);
+    for (const auto& t : triangles) {
+        segments.push_back({t.v0, t.v1});
+        segments.push_back({t.v1, t.v2});
+        segments.push_back({t.v2, t.v0});
+    }
+
+    auto shareEndpoint = [](const Segment& s, const Segment& r) {
+        return s.p == r.p || s.p == r.q || s.q == r.p || s.q == r.q;
+    };
+
+    for (std::size_t i = 0; i < segments.size(); ++i) {
+        for (std::size_t j = i + 1; j < segments.size(); ++j) {
+            if (shareEndpoint(segments[i], segments[j])) continue;
+            if (segmentsIntersect(
+                    segments[i].p, segments[i].q,
+                    segments[j].p, segments[j].q,
+                    EPSILON<double>)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+// Локальный критерий Делоне для каждого внутреннего ребра, по определению:
+// противоположная вершина соседнего треугольника не лежит СТРОГО внутри
+// описанной окружности (кокруговой случай считается законным).
+// Проверка независима от внутренних структур DelaunayFlip.
+bool allInteriorEdgesLocallyDelaunay(
+    const std::vector<Triangle2<double>>& triangles)
+{
+    std::map<CoordEdge, std::vector<Point2<double>>> edgeToOpposites;
+    for (const auto& t : triangles) {
+        edgeToOpposites[makeCoordEdge(t.v0, t.v1)].push_back(t.v2);
+        edgeToOpposites[makeCoordEdge(t.v1, t.v2)].push_back(t.v0);
+        edgeToOpposites[makeCoordEdge(t.v2, t.v0)].push_back(t.v1);
+    }
+
+    for (const auto& [edge, opposites] : edgeToOpposites) {
+        if (opposites.size() == 1) continue;    // граничное ребро
+        if (opposites.size() != 2) return false; // ребро у 3+ треугольников — брак
+
+        const auto& a = edge.a;
+        const auto& b = edge.b;
+        const auto& c = opposites[0];
+        const auto& d = opposites[1];
+
+        // Критерий применим только к выпуклому четырёхугольнику:
+        // c и d по разные стороны от ребра.
+        const int o1 = orientation(a, b, c);
+        const int o2 = orientation(a, b, d);
+        if (o1 == 0 || o2 == 0 || o1 == o2) continue;
+
+        // inCircumcircle требует CCW-ориентацию треугольника.
+        const bool illegal = (o1 == 2)
+            ? inCircumcircle(a, b, c, d)
+            : inCircumcircle(a, c, b, d);
+        if (illegal) return false;
+    }
+    return true;
+}
+
 // Проверяет основные геометрические инварианты результата.
 template <typename T>
 void expectValidTriangulation(
@@ -188,6 +306,19 @@ void expectValidTriangulation(
         allPolygonBoundaryEdgesPresent(
             polygon,
             result.triangles));
+
+    EXPECT_TRUE(
+        allVerticesCovered(
+            polygon,
+            result.triangles));
+
+    // Квадратично по числу рёбер — для больших входов пропускаем.
+    if (result.triangles.size() <= 5000) {
+        EXPECT_TRUE(noEdgeIntersections(result.triangles));
+    }
+
+    EXPECT_TRUE(allInteriorEdgesLocallyDelaunay(result.triangles));
+
 }
 
 // Важно: начальная триангуляция строится через Ear Clipping
@@ -453,8 +584,79 @@ TEST(DelaunayFlipTest, FlipStepsCarryFullStateSnapshot) {
 }
 
 // ============================================================
+// Этап 0 (ROADMAP.md): большой вход и зафиксированное поведение
+// на дубликатах / близко лежащих точках
+// ============================================================
+
+TEST(DelaunayFlipTest, ThousandContourPointsSatisfyAllInvariants) {
+    // 1024 точки на контуре с детерминированным дрожанием радиуса:
+    // полигон остаётся звёздным (и потому простым), а точки не кокруговы.
+    const std::size_t n = 1024;
+    const double pi = std::acos(-1.0);
+
+    Polygon2<double> polygon;
+    polygon.reserve(n);
+    for (std::size_t i = 0; i < n; ++i) {
+        const double angle = 2.0 * pi * static_cast<double>(i) / static_cast<double>(n);
+        const double radius = 1.0 + 0.05 * std::sin(12.9898 * static_cast<double>(i));
+        polygon.push_back({radius * std::cos(angle), radius * std::sin(angle)});
+    }
+
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(polygon);
+
+    expectValidTriangulation(polygon, result, polygon.size() - 2);
+}
+
+TEST(DelaunayFlipTest, DuplicatePointsAreRejected) {
+    // Текущее поведение, зафиксированное тестом: точный дубликат вершины
+    // (соседний или нет) приводит к отказу начальной Ear Clipping-фазы,
+    // который DelaunayFlip оборачивает в InitialTriangulationFailed.
+    // Осмысленная обработка дубликатов — задача Этапа 1 ROADMAP.md.
+    const Polygon2<double> dupConsecutive = {
+        {0, 0}, {2, 0}, {2, 0}, {2, 2}, {0, 2}
+    };
+    const Polygon2<double> dupNonConsecutive = {
+        {0, 0}, {2, 0}, {2, 2}, {0, 2}, {0, 0}
+    };
+
+    for (const auto& polygon : {dupConsecutive, dupNonConsecutive}) {
+        DelaunayFlip<double> delaunayFlip;
+        const auto result = delaunayFlip.triangulate(polygon);
+
+        EXPECT_FALSE(result);
+        ASSERT_TRUE(result.error.has_value());
+        EXPECT_EQ(result.error->code, ErrorCode::InitialTriangulationFailed);
+        EXPECT_TRUE(result.triangles.empty());
+    }
+}
+
+TEST(DelaunayFlipTest, NearDuplicatePointsBehavior) {
+    // Поведение зависит от EPSILON: точки ближе ~1e-10 считаются совпадающими
+    // и дают тот же отказ, что и точные дубликаты; точки дальше ~1e-9
+    // триангулируются как обычные.
+    const Polygon2<double> tooClose = {
+        {0, 0}, {2, 0}, {2 + 1e-12, 1e-12}, {2, 2}, {0, 2}
+    };
+    const Polygon2<double> farEnough = {
+        {0, 0}, {2, 0}, {2 + 1e-9, 1e-9}, {2, 2}, {0, 2}
+    };
+
+    DelaunayFlip<double> rejected;
+    const auto rejectedResult = rejected.triangulate(tooClose);
+    EXPECT_FALSE(rejectedResult);
+    ASSERT_TRUE(rejectedResult.error.has_value());
+    EXPECT_EQ(rejectedResult.error->code, ErrorCode::InitialTriangulationFailed);
+
+    DelaunayFlip<double> accepted;
+    const auto acceptedResult = accepted.triangulate(farEnough);
+    expectValidTriangulation(farEnough, acceptedResult, 3);
+}
+
+// ============================================================
 // Invalid and degenerate input
 // ============================================================
+
 
 TEST(DelaunayFlipTest, LessThanThreeVertices) {
     // Недостаточно вершин для построения треугольника.
