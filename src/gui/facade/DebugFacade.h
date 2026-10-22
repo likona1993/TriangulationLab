@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QString>
+#include <optional>
 #include <vector>
 #include "geometry/types.h"
 #include "geometry/ear_clipping.h"
@@ -41,6 +42,7 @@ public:
     size_t getHighlightedVertexIndex() const;
     std::vector<std::pair<geo::Point2<double>, geo::Point2<double>>> getAddedDiagonals() const;
     std::vector<size_t> getRemovedVertices() const;
+    std::optional<double> getSweepY() const;
     QString getStepDescription() const;
 
 signals:

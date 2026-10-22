@@ -416,6 +416,42 @@ TEST(DelaunayFlipTest, ZigzagCorridorProducesSeveralFlipSteps) {
     EXPECT_GE(countFlipSteps(history), 2u);
 }
 
+TEST(DelaunayFlipTest, FlipStepsCarryFullStateSnapshot) {
+    // Шаг флипа должен содержать полный снимок текущей триангуляции,
+    // а не пару треугольников-дельту: иначе накопление шагов в GUI
+    // рисует новые треугольники поверх ещё не перевёрнутых.
+    const Polygon2<double> polygon = {
+        {0.0, 0.0},
+        {2.0, 0.25},
+        {4.0, 0.0},
+        {6.0, 0.25},
+        {8.0, 0.0},
+        {8.0, 3.0},
+        {6.0, 2.75},
+        {4.0, 3.0},
+        {2.0, 2.75},
+        {0.0, 3.0}
+    };
+
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(polygon);
+    ASSERT_TRUE(result);
+
+    const auto& history = delaunayFlip.getDebugHistory();
+    ASSERT_GE(countFlipSteps(history), 1u);
+
+    for (const auto& step : history) {
+        if (step.description != "Flip illegal edge") {
+            continue; // шаги начальной Ear Clipping-триангуляции
+        }
+
+        EXPECT_TRUE(step.replaces_state);
+        EXPECT_EQ(step.added_triangles.size(), polygon.size() - 2);
+        EXPECT_EQ(step.polygon_before.size(), polygon.size());
+        EXPECT_EQ(step.highlighted_vertices.size(), 4u);
+    }
+}
+
 // ============================================================
 // Invalid and degenerate input
 // ============================================================

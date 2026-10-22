@@ -40,7 +40,13 @@ public:
         const std::vector<QLineF>& diagonals,
         const QColor& color,
         float lineWidth,
-        Qt::PenStyle style);
+        Qt::PenStyle style) override;
+
+    void drawSweepLine(qreal y,
+                       const QRectF& worldRect,
+                       const QColor& color,
+                       float lineWidth,
+                       Qt::PenStyle style) override;
 
     void drawGrid(const QRectF& worldRect) override;
 

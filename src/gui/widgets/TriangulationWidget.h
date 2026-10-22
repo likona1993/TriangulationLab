@@ -1,6 +1,7 @@
 #pragma once
 #include <QWidget>
 #include <memory>
+#include <optional>
 #include <vector>
 #include <QPointF>
 #include <array>
@@ -52,6 +53,7 @@ private:
     std::vector<QPointF> m_debugPolygon;
     std::vector<std::array<QPointF, 3>> m_debugTriangles;
     std::vector<QLineF> m_debugDiagonals;
+    std::optional<double> m_debugSweepY;
     int m_currentStep = -1;
     int m_totalSteps = 0;
     bool m_showDebug = false;

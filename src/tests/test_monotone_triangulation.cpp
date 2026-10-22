@@ -317,3 +317,29 @@ TEST(MonotoneTriangulationTest, RejectsDegenerateCollinearPolygon) {
     EXPECT_FALSE(result);
     EXPECT_TRUE(result.triangles.empty());
 }
+
+// Шаги sweep-фазы должны записывать y-координату линии заметания,
+// чтобы GUI мог её отрисовать. Заметание идёт сверху вниз,
+// поэтому значения sweep_y не возрастают.
+TEST(MonotoneTriangulationTest, SweepStepsRecordSweepLineY) {
+    auto square = makeSquare();
+    MonotoneTriangulation<double> mt;
+
+    auto result = mt.triangulate(square);
+    ASSERT_TRUE(result) << result.error->debugMessage;
+
+    std::vector<double> sweepYs;
+    for (const auto& step : mt.getDebugHistory()) {
+        if (step.sweep_y.has_value()) {
+            sweepYs.push_back(*step.sweep_y);
+        }
+    }
+
+    // На каждую из 4 вершин квадрата — один sweep-шаг.
+    ASSERT_EQ(sweepYs.size(), square.size());
+    EXPECT_DOUBLE_EQ(sweepYs.front(), 1.0);
+    EXPECT_DOUBLE_EQ(sweepYs.back(), 0.0);
+    for (size_t i = 1; i < sweepYs.size(); ++i) {
+        EXPECT_LE(sweepYs[i], sweepYs[i - 1]);
+    }
+}

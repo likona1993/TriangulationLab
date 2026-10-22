@@ -3,6 +3,7 @@
 #include <QPointF>
 #include <array>
 #include <memory>
+#include <optional>
 #include <vector>
 #include <QLineF>
 
@@ -73,6 +74,7 @@ public:
     size_t getDebugHighlightedVertexIndex() const; // TDOD - убрать
     std::vector<size_t> getDebugHighlightedVertices() const;
     std::vector<QLineF> getDebugDiagonals() const;
+    std::optional<double> getDebugSweepY() const;
 
     signals:
     // Сигналы для UI

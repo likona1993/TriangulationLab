@@ -63,7 +63,13 @@ std::vector<geo::Triangle2<double>> DebugFacade::getAccumulatedTriangles() const
     std::vector<geo::Triangle2<double>> result;
     for (int i = 0; i <= m_currentStep && i < getTotalSteps(); ++i) {
         const auto& step = m_history[i];
-        result.insert(result.end(), step.added_triangles.begin(), step.added_triangles.end());
+        if (step.replaces_state) {
+            // Шаг со снимком полного состояния: всё накопленное до него
+            // больше не актуально (Delaunay flip после ear-clipping префикса).
+            result = step.added_triangles;
+        } else {
+            result.insert(result.end(), step.added_triangles.begin(), step.added_triangles.end());
+        }
     }
     return result;
 }
@@ -94,6 +100,14 @@ std::vector<size_t> DebugFacade::getRemovedVertices() const
         return m_history[m_currentStep].highlighted_vertices;
     }
     return {};
+}
+
+std::optional<double> DebugFacade::getSweepY() const
+{
+    if (m_currentStep >= 0 && m_currentStep < getTotalSteps()) {
+        return m_history[m_currentStep].sweep_y;
+    }
+    return std::nullopt;
 }
 
 QString DebugFacade::getStepDescription() const {

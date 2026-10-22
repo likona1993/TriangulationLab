@@ -249,6 +249,10 @@ std::vector<QLineF> TriangulationFacade::getDebugDiagonals() const {
     return result;
 }
 
+std::optional<double> TriangulationFacade::getDebugSweepY() const {
+    return m_debugFacade->getSweepY();
+}
+
 // ============================================================
 //  Получение данных
 // ============================================================

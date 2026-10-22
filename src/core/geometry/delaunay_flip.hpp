@@ -238,8 +238,11 @@ void DelaunayFlip<T>::flipEdge(size_t tri1, size_t tri2, const Edge& edge)
 
     DebugStep<T> step;
     step.description = "Flip illegal edge";
-    step.added_diagonals.emplace_back(m_points[edge.from], m_points[edge.to]);
+    step.polygon_before = m_points;
+    step.highlighted_vertices = {edge.from, edge.to, *o1, *o2};
+    step.added_diagonals.emplace_back(m_points[*o1], m_points[*o2]);
     step.added_triangles = exportTriangles();
+    step.replaces_state = true;
     m_history.push_back(step);
 }
 

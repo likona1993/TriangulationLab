@@ -52,5 +52,11 @@ struct DebugStep {
   // Дополнительная информация для отладки/визуализации
   std::string description;
 
+  // true, если added_triangles — полный снимок триангуляции на этот момент
+  // (Delaunay flip), а не дельта для накопления (ear clipping, monotone).
+  bool replaces_state = false;
+
+  // y-координата sweep line на этом шаге (monotone, фаза разбиения).
+  std::optional<T> sweep_y;
 };
 } // namespace geo

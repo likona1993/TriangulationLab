@@ -173,6 +173,17 @@ void QPainterRenderer::drawDiagonals(const std::vector<QLineF> &diagonals, const
     }
 }
 
+void QPainterRenderer::drawSweepLine(qreal y, const QRectF& worldRect, const QColor& color, float lineWidth, Qt::PenStyle style)
+{
+    if (!m_isActive || !m_painter) return;
+
+    QPen pen(color, lineWidth);
+    pen.setStyle(style);
+    m_painter->setPen(pen);
+    m_painter->setBrush(Qt::NoBrush);
+    m_painter->drawLine(QPointF(worldRect.left(), y), QPointF(worldRect.right(), y));
+}
+
 void QPainterRenderer::drawGrid(const QRectF& worldRect) {
     if (!m_isActive) return;
 

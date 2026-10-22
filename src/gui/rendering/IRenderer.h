@@ -51,6 +51,13 @@ public:
         float lineWidth,
         Qt::PenStyle style) = 0;
 
+    // Горизонтальная sweep-линия на высоте y во всю ширину worldRect
+    virtual void drawSweepLine(qreal y,
+                               const QRectF& worldRect,
+                               const QColor& color,
+                               float lineWidth = 1.0f,
+                               Qt::PenStyle style = Qt::DashLine) = 0;
+
     // Дополнительно: сетка, оси и т.д.
     virtual void drawGrid(const QRectF& worldRect) = 0;
 

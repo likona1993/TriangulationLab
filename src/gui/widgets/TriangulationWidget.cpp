@@ -72,6 +72,17 @@ void TriangulationWidget::paintEvent(QPaintEvent* /*event*/) {
             );
     }
 
+    // Sweep-линия для алгоритмов, которые записывают её в историю (monotone).
+    if (m_showDebug && m_debugSweepY.has_value()) {
+        m_renderer->drawSweepLine(
+            *m_debugSweepY,
+            m_currentBBox,
+            QColor(180, 0, 180),
+            1.5f,
+            Qt::DashLine
+            );
+    }
+
     // Основной пользовательский полигон рисуем всегда,
     // чтобы не терять исходный контекст.
     if (!m_polygonPoints.empty()) {
@@ -289,6 +300,9 @@ void TriangulationWidget::updateDebugData() {
 
     // Забираем диагонали, добавленные на текущем debug-шаге.
     m_debugDiagonals = m_facade->getDebugDiagonals();
+
+    // Забираем y-координату sweep line, если алгоритм её записал (monotone).
+    m_debugSweepY = m_facade->getDebugSweepY();
 
     // Синхронизируем локальные счётчики шага с фасадом.
     m_currentStep = m_facade->getCurrentStep();

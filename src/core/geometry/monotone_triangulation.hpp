@@ -162,6 +162,7 @@ bool MonotoneTriangulation<T>::makeMonotone(
     DebugStep<T> step;
     step.polygon_before = poly;
     step.highlighted_vertices.push_back(vi);
+    step.sweep_y = currentY;
     step.description = "Вершина " + std::to_string(vi) + " (" + vertexTypeName(types[vi]) + ")";
     for (size_t k = diagBefore; k < diagonals.size(); ++k) {
         const auto& d = diagonals[k];
