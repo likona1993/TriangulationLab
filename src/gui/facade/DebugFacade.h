@@ -38,10 +38,8 @@ public:
     // Данные текущего шага
     geo::Polygon2<double> getCurrentPolygon() const;
     std::vector<geo::Triangle2<double>> getAccumulatedTriangles() const;
-    std::vector<geo::Triangle2<double>> getLastCutTriangles() const;
-    size_t getHighlightedVertexIndex() const;
     std::vector<std::pair<geo::Point2<double>, geo::Point2<double>>> getAddedDiagonals() const;
-    std::vector<size_t> getRemovedVertices() const;
+    std::vector<size_t> getHighlightedVertices() const;
     std::optional<double> getSweepY() const;
     QString getStepDescription() const;
 

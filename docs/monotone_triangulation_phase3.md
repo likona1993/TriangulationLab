@@ -336,8 +336,12 @@ R1 = (5, 8)
   перенесены в `monotone_triangulation.h`/`.hpp`.
 - [x] `triangulateMonotonePiece` вызывается для каждого куска из
   `triangulate()`, треугольники собираются в `TriangulationResult<T>::triangles`.
-- Заполнить `history` (`DebugStep<T>`) по аналогии с `EarClipping`, чтобы
+- [x] Заполнить `history` (`DebugStep<T>`) по аналогии с `EarClipping`, чтобы
   фаза 3 тоже была видна в пошаговом отладчике GUI.
-- Тесты в `src/tests/test_monotone_triangulation.cpp`: куски A/C из
-  сквозного примера и рефлексный пример выше (текущие тесты проверяют только,
-  что `triangulate()` не падает, но не сравнивают полученные треугольники).
+  Шаги sweep-фазы дополнительно пишут `sweep_y` (высота линии заметания),
+  шаги триангуляции кусков — `highlighted_vertices` (позиции вершин
+  треугольника внутри `piece`, т.е. индексы в `polygon_before` шага).
+- [x] Тесты в `src/tests/test_monotone_triangulation.cpp`: сквозной пример
+  выше покрыт (`TriangulatesRectangleWithTriangularCutouts`), тесты сравнивают
+  число треугольников (n−2), сумму площадей, невырожденность и CCW-ориентацию,
+  а также проверяют debug-историю (диагонали, `sweep_y`).

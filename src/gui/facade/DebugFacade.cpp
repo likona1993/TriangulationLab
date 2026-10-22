@@ -74,18 +74,6 @@ std::vector<geo::Triangle2<double>> DebugFacade::getAccumulatedTriangles() const
     return result;
 }
 
-std::vector<geo::Triangle2<double>> DebugFacade::getLastCutTriangles() const {
-    if (m_currentStep >= 0 && m_currentStep < getTotalSteps()) {
-        return m_history[m_currentStep].added_triangles;
-    }
-    return {};
-}
-
-size_t DebugFacade::getHighlightedVertexIndex() const {
-    auto removed = getRemovedVertices();
-    return removed.empty() ? 0 : removed.front();
-}
-
 std::vector<std::pair<geo::Point2<double>, geo::Point2<double> > > DebugFacade::getAddedDiagonals() const
 {
     if (m_currentStep >= 0 && m_currentStep < getTotalSteps()) {
@@ -94,7 +82,7 @@ std::vector<std::pair<geo::Point2<double>, geo::Point2<double> > > DebugFacade::
     return {};
 }
 
-std::vector<size_t> DebugFacade::getRemovedVertices() const
+std::vector<size_t> DebugFacade::getHighlightedVertices() const
 {
     if (m_currentStep >= 0 && m_currentStep < getTotalSteps()) {
         return m_history[m_currentStep].highlighted_vertices;

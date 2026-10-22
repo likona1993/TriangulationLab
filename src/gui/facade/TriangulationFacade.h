@@ -71,7 +71,6 @@ public:
     std::vector<QPointF> getDebugPolygon() const;
     std::vector<std::array<QPointF, 3>> getDebugTriangles() const;
     QString getDebugDescription() const;
-    size_t getDebugHighlightedVertexIndex() const; // TDOD - убрать
     std::vector<size_t> getDebugHighlightedVertices() const;
     std::vector<QLineF> getDebugDiagonals() const;
     std::optional<double> getDebugSweepY() const;

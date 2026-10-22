@@ -34,6 +34,16 @@ void TriangulationWidget::setAlgorithm(geo::TriangulationAlgorithm algo)
     m_facade->setAlgorithm(algo);
 }
 
+void TriangulationWidget::ensureDebugVisible()
+{
+    if (!m_showDebug && m_totalSteps > 0) {
+        m_showDebug = true;
+    }
+    if (m_showDebug) {
+        refreshDebugView();
+    }
+}
+
 // ============================================================
 //  Рендеринг
 // ============================================================

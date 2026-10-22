@@ -228,12 +228,8 @@ QString TriangulationFacade::getDebugDescription() const {
   return m_debugFacade->getStepDescription();
 }
 
-size_t TriangulationFacade::getDebugHighlightedVertexIndex() const {
-  return m_debugFacade->getHighlightedVertexIndex();
-}
-
 std::vector<size_t> TriangulationFacade::getDebugHighlightedVertices() const {
-    return m_debugFacade->getRemovedVertices();
+    return m_debugFacade->getHighlightedVertices();
 }
 
 std::vector<QLineF> TriangulationFacade::getDebugDiagonals() const {

@@ -26,6 +26,10 @@ public:
 
     void setAlgorithm(geo::TriangulationAlgorithm algo);
 
+    // Включает debug-режим, если он выключен, и перерисовывает сцену.
+    // Используется внешними элементами управления (DebugControlsWidget).
+    void ensureDebugVisible();
+
     // Доступ к фасаду (для MainWindow)
     facade::TriangulationFacade* facade() const { return m_facade.get(); }
 

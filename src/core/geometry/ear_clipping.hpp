@@ -65,6 +65,7 @@ TriangulationResult<T> EarClipping<T>::triangulate(const Polygon2<T>& input, T e
                 DebugStep<T> step;
                 step.polygon_before = working;
                 step.highlighted_vertices.push_back(i);
+                step.description = "Cut ear at vertex " + std::to_string(i);
 
                 const size_t prev_idx = (i - 1 + n) % n;
                 const size_t next_idx = (i + 1) % n;
@@ -109,6 +110,7 @@ TriangulationResult<T> EarClipping<T>::triangulate(const Polygon2<T>& input, T e
         DebugStep<T> step;
         step.polygon_before = working;
         step.highlighted_vertices.push_back(0);
+        step.description = "Final triangle";
         step.added_triangles.push_back(Triangle2<T>(working[0], working[1], working[2]));
         m_history.push_back(step);
         result.triangles.push_back(step.added_triangles[0]);

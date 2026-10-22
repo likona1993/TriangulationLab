@@ -163,7 +163,7 @@ bool MonotoneTriangulation<T>::makeMonotone(
     step.polygon_before = poly;
     step.highlighted_vertices.push_back(vi);
     step.sweep_y = currentY;
-    step.description = "Вершина " + std::to_string(vi) + " (" + vertexTypeName(types[vi]) + ")";
+    step.description = "Vertex " + std::to_string(vi) + " (" + vertexTypeName(types[vi]) + ")";
     for (size_t k = diagBefore; k < diagonals.size(); ++k) {
         const auto& d = diagonals[k];
         step.added_diagonals.emplace_back(poly[d.first], poly[d.second]);
@@ -537,8 +537,10 @@ bool MonotoneTriangulation<T>::triangulateMonotonePiece(
     return isAbove(poly[piece[a]], poly[piece[b]]);
   });
 
-  // Логирует один шаг: только что добавленный треугольник + текущий
-  // оставшийся контур (после обновления consumed).
+  // Логирует один шаг: только что добавленный треугольник + контур куска.
+  // polygon_before собран из piece, поэтому highlighted_vertices хранит
+  // ПОЗИЦИИ внутри piece (именно ими индексируется polygon_before в GUI),
+  // а не глобальные индексы вершин в poly.
   std::function<void(VertexIndex, VertexIndex, VertexIndex)> logStep = [&](VertexIndex a, VertexIndex b, VertexIndex c) {
       DebugStep<T> step;
 
@@ -548,8 +550,14 @@ bool MonotoneTriangulation<T>::triangulateMonotonePiece(
           step.polygon_before.push_back(poly[idx]);
       }
 
+      auto posInPiece = [&piece](VertexIndex v) {
+          return static_cast<size_t>(
+              std::find(piece.begin(), piece.end(), v) - piece.begin());
+      };
+      step.highlighted_vertices = {posInPiece(a), posInPiece(b), posInPiece(c)};
+
       step.added_triangles.push_back(out.back());
-      step.description = "Кусок: треугольник (" + std::to_string(a) + ", " +
+      step.description = "Piece: triangle (" + std::to_string(a) + ", " +
                          std::to_string(b) + ", " + std::to_string(c) + ")";
       history.push_back(std::move(step));
   };

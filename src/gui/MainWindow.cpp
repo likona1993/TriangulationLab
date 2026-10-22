@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "widgets/TriangulationWidget.h"
+#include "widgets/DebugControlsWidget.h"
 #include <QMenuBar>
 #include <QStatusBar>
 #include <QAction>
@@ -49,6 +50,15 @@ MainWindow::MainWindow(QWidget *parent)
         m_widget->setAlgorithm(algorithm);
         m_widget->setFocus();
     });
+
+    // Панель пошагового просмотра: навигация по истории текущего алгоритма
+    auto* debugControls = new DebugControlsWidget(this);
+    debugControls->setFacade(m_widget->facade());
+    toolBar->addWidget(debugControls);
+
+    // Нажатие кнопок навигации включает debug-режим на холсте
+    connect(debugControls, &DebugControlsWidget::userNavigated,
+            m_widget, &TriangulationWidget::ensureDebugVisible);
 
     // Статус-бар (пока пустой, но можно использовать для сообщений)
     statusBar()->showMessage("Draw polygon with left click, press Enter to triangulate");

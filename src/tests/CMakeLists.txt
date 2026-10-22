@@ -34,6 +34,30 @@ target_compile_options(test_core PRIVATE
 
 add_test(NAME test_core COMMAND test_core)
 
+# Тесты фасада отладки (QObject, но без GUI — достаточно Qt Core)
+add_executable(test_debug_facade
+    test_debug_facade.cpp
+    ${CMAKE_SOURCE_DIR}/src/gui/facade/DebugFacade.cpp
+    ${CMAKE_SOURCE_DIR}/src/gui/facade/DebugFacade.h
+)
+
+target_link_libraries(test_debug_facade
+    core
+    gtest_main
+    Qt${QT_VERSION_MAJOR}::Core
+)
+
+target_include_directories(test_debug_facade PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/gui
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_compile_options(test_debug_facade PRIVATE
+    -Wall -Wextra -Wpedantic
+)
+
+add_test(NAME test_debug_facade COMMAND test_debug_facade)
+
 # Тесты для GUI (опционально, с Qt Test)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Test)
 if(Qt${QT_VERSION_MAJOR}_Test_FOUND)
