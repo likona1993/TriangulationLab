@@ -222,3 +222,98 @@ TEST(MonotoneTriangulationTest, RecordsDiagonalsForSplitMergePolygon) {
     }
     EXPECT_TRUE(diagonalStepIsWellFormed);
 }
+
+// Выпуклые полигоны произвольной ориентации: sweep не должен зависеть
+// от того, что полигон выровнен по осям.
+TEST(MonotoneTriangulationTest, TriangulatesConvexPentagon) {
+    Polygon2<double> pentagon = {
+        {0.0, 1.0}, {0.951, 0.309}, {0.588, -0.809}, {-0.588, -0.809}, {-0.951, 0.309}
+    };
+    ensureCCW(pentagon);
+    MonotoneTriangulation<double> mt;
+
+    auto result = mt.triangulate(pentagon);
+
+    ASSERT_TRUE(result) << result.error->debugMessage;
+    EXPECT_EQ(result.triangles.size(), pentagon.size() - 2);
+    EXPECT_NEAR(sumTrianglesArea(result.triangles), absArea(pentagon), 1e-9);
+    EXPECT_TRUE(allTrianglesNonDegenerate(result.triangles, EPSILON<double>));
+    EXPECT_TRUE(allTrianglesCCW(result.triangles, EPSILON<double>));
+}
+
+TEST(MonotoneTriangulationTest, TriangulatesConvexHexagon) {
+    Polygon2<double> hexagon = {
+        {1.0, 0.0}, {0.5, 0.866}, {-0.5, 0.866}, {-1.0, 0.0}, {-0.5, -0.866}, {0.5, -0.866}
+    };
+    ensureCCW(hexagon);
+    MonotoneTriangulation<double> mt;
+
+    auto result = mt.triangulate(hexagon);
+
+    ASSERT_TRUE(result) << result.error->debugMessage;
+    EXPECT_EQ(result.triangles.size(), hexagon.size() - 2);
+    EXPECT_NEAR(sumTrianglesArea(result.triangles), absArea(hexagon), 1e-9);
+    EXPECT_TRUE(allTrianglesNonDegenerate(result.triangles, EPSILON<double>));
+    EXPECT_TRUE(allTrianglesCCW(result.triangles, EPSILON<double>));
+}
+
+// Прямоугольник 10x10 с двумя треугольными вырезами
+// (пример из docs/monotone_triangulation_phase3.md): два split/merge-случая
+// на одном полигоне.
+TEST(MonotoneTriangulationTest, TriangulatesRectangleWithTriangularCutouts) {
+    Polygon2<double> poly = {
+        {0.0, 0.0},  {3.0, 0.0},  {5.0, 4.0},  {7.0, 0.0},  {10.0, 0.0},
+        {10.0, 10.0}, {7.0, 10.0}, {5.0, 6.0},  {3.0, 10.0}, {0.0, 10.0}
+    };
+    MonotoneTriangulation<double> mt;
+
+    auto result = mt.triangulate(poly);
+
+    ASSERT_TRUE(result) << result.error->debugMessage;
+    EXPECT_EQ(result.triangles.size(), poly.size() - 2);
+    EXPECT_NEAR(sumTrianglesArea(result.triangles), absArea(poly), 1e-9);
+    EXPECT_TRUE(allTrianglesNonDegenerate(result.triangles, EPSILON<double>));
+    EXPECT_TRUE(allTrianglesCCW(result.triangles, EPSILON<double>));
+}
+
+// Вход, заданный по часовой стрелке: после нормализации ensureCCW
+// (так делает фасад перед запуском) алгоритм обязан выдать корректный результат.
+TEST(MonotoneTriangulationTest, TriangulatesClockwiseInputAfterNormalization) {
+    Polygon2<double> square = {{0.0, 0.0}, {0.0, 1.0}, {1.0, 1.0}, {1.0, 0.0}}; // CW
+    ensureCCW(square);
+    MonotoneTriangulation<double> mt;
+
+    auto result = mt.triangulate(square);
+
+    ASSERT_TRUE(result) << result.error->debugMessage;
+    EXPECT_EQ(result.triangles.size(), 2u);
+    EXPECT_NEAR(sumTrianglesArea(result.triangles), 1.0, EPSILON<double>);
+    EXPECT_TRUE(allTrianglesCCW(result.triangles, EPSILON<double>));
+}
+
+// Пустой полигон и полигон из одной вершины — тот же отказ, что и для двух вершин.
+TEST(MonotoneTriangulationTest, RejectsEmptyAndSingleVertexPolygons) {
+    MonotoneTriangulation<double> mt;
+
+    auto empty = mt.triangulate(Polygon2<double>{});
+    EXPECT_FALSE(empty);
+    EXPECT_EQ(empty.error->code, geo::ErrorCode::NotEnoughVertices);
+    EXPECT_TRUE(empty.triangles.empty());
+
+    auto single = mt.triangulate(Polygon2<double>{{0.0, 0.0}});
+    EXPECT_FALSE(single);
+    EXPECT_EQ(single.error->code, geo::ErrorCode::NotEnoughVertices);
+    EXPECT_TRUE(single.triangles.empty());
+}
+
+// Полностью коллинеарный полигон не имеет площади и не может быть
+// триангулирован — алгоритм должен отказать, а не вернуть пустой "успех".
+TEST(MonotoneTriangulationTest, RejectsDegenerateCollinearPolygon) {
+    Polygon2<double> collinear = {{0.0, 0.0}, {1.0, 0.0}, {2.0, 0.0}, {3.0, 0.0}};
+    MonotoneTriangulation<double> mt;
+
+    auto result = mt.triangulate(collinear);
+
+    EXPECT_FALSE(result);
+    EXPECT_TRUE(result.triangles.empty());
+}
