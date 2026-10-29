@@ -154,12 +154,20 @@ static bool isAbove(const Point2<T> &a, const Point2<T> &b) {
 
 // ============================================================
 // проверяет, лежит ли точка d в окружности, описанной около abc
+// (abc должны быть ориентированы CCW)
 // ============================================================
+// Для почти кокруговых конфигураций знак det определяется шумом
+// округления и зависит от порядка аргументов. Поэтому det ниже порога,
+// пропорционального масштабу слагаемых, считаем нулём: точка «на
+// окружности» => ребро законно (инвариант Этапа 3 ROADMAP.md).
+// Это интерим-оценка погрешности; точные адаптивные предикаты
+// Шевчука — отдельный шаг Этапа 3.
 template <typename T>
 bool inCircumcircle(const geo::Point2<T>& a,
                     const geo::Point2<T>& b,
                     const geo::Point2<T>& c,
-                    const geo::Point2<T>& d)
+                    const geo::Point2<T>& d,
+                    T eps = EPSILON<T>)
 {
     T ax = a.x - d.x;
     T ay = a.y - d.y;
@@ -168,12 +176,13 @@ bool inCircumcircle(const geo::Point2<T>& a,
     T cx = c.x - d.x;
     T cy = c.y - d.y;
 
-    T det =
-        (ax * ax + ay * ay) * (bx * cy - by * cx) -
-        (bx * bx + by * by) * (ax * cy - ay * cx) +
-        (cx * cx + cy * cy) * (ax * by - ay * bx);
+    const T t1 = (ax * ax + ay * ay) * (bx * cy - by * cx);
+    const T t2 = (bx * bx + by * by) * (ax * cy - ay * cx);
+    const T t3 = (cx * cx + cy * cy) * (ax * by - ay * bx);
+    const T det = t1 - t2 + t3;
 
-    return det > T(0);
+    const T scale = std::abs(t1) + std::abs(t2) + std::abs(t3);
+    return det > eps * scale;
 }
 
 // ============================================================

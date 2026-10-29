@@ -833,3 +833,46 @@ TEST(DelaunayFlipIndexedTest, ErrorPathsLeaveFacesEmpty) {
     EXPECT_FALSE(res);
     EXPECT_TRUE(res.faces.empty());
 }
+
+// ============================================================
+// Этап 2 (ROADMAP.md): стек флипов и соседство вместо edge map
+// ============================================================
+
+TEST(DelaunayFlipTest, ResultIsDeterministicAcrossRuns) {
+    // Стек кандидатов вместо полного перебора edge map не должен
+    // менять результат: два запуска на одном входе дают идентичные faces.
+    const Polygon2<double> polygon = {
+        {0.0, 0.0}, {2.0, 0.25}, {4.0, 0.0}, {6.0, 0.25}, {8.0, 0.0},
+        {8.0, 3.0}, {6.0, 2.75}, {4.0, 3.0}, {2.0, 2.75}, {0.0, 3.0}
+    };
+
+    DelaunayFlip<double> first;
+    DelaunayFlip<double> second;
+    const auto r1 = first.triangulate(polygon);
+    const auto r2 = second.triangulate(polygon);
+
+    ASSERT_TRUE(r1);
+    ASSERT_TRUE(r2);
+    EXPECT_EQ(r1.faces, r2.faces);
+}
+
+TEST(DelaunayFlipTest, CoCircularPolygonTerminatesWithValidResult) {
+    // Все вершины правильного восьмиугольника лежат на одной окружности:
+    // знак incircle для любых 4 точек определяется шумом округления.
+    // Порог в inCircumcircle делает такие рёбра законными, поэтому
+    // цикл флипов завершается, а результат валиден и детерминирован.
+    const std::size_t n = 8;
+    const double pi = std::acos(-1.0);
+
+    Polygon2<double> polygon;
+    polygon.reserve(n);
+    for (std::size_t i = 0; i < n; ++i) {
+        const double angle = 2.0 * pi * static_cast<double>(i) / static_cast<double>(n);
+        polygon.push_back({std::cos(angle), std::sin(angle)});
+    }
+
+    DelaunayFlip<double> delaunayFlip;
+    const auto result = delaunayFlip.triangulate(polygon);
+
+    expectValidTriangulation(polygon, result, n - 2);
+}

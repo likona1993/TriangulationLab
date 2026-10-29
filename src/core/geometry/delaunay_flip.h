@@ -1,8 +1,8 @@
 #pragma once
 
+#include <array>
+#include <cstdint>
 #include <vector>
-#include <map>
-#include <utility>
 
 #include "triangulation_types.h"
 #include "types.h"
@@ -12,14 +12,18 @@ namespace geo {
 // ============================================================
 // Триангуляция Делоне методом флипов
 // ============================================================
+// Структура соседства «треугольник + 3 соседа» (Этап 2 Roadmap):
+// m_adj[t][k] — индекс соседнего треугольника через сторону напротив
+// вершины k треугольника t, -1 = граница триангуляции.
+// Флип перезаписывает 2 треугольника и обновляет ссылки соседства за O(1);
+// поиск незаконных рёбер — стек кандидатов (алгоритм Lawson),
+// без полной перестройки карты рёбер после каждого флипа.
 template <typename T>
 class DelaunayFlip {
 public:
     using Point = Point2<T>;
     using Points = std::vector<Point>;
     using VertexIndex = geo::VertexIndex;
-    using EdgeKey = geo::Edge;
-    using EdgeToTriangles = std::map<EdgeKey, std::vector<size_t>, geo::EdgeLess>;
 
     TriangulationResult<T> triangulate(const Points& input);
 
@@ -27,31 +31,27 @@ public:
     void clearDebugHistory() { m_history.clear(); }
 
 private:
-    struct TriangleRef {
-        VertexIndex a = 0;
-        VertexIndex b = 0;
-        VertexIndex c = 0;
+    // Ребро внутри триангуляции: треугольник + локальный индекс
+    // противолежащей вершины (сторона напротив неё — само ребро).
+    struct EdgeRef {
+        size_t tri;
+        size_t k;
     };
 
-    struct IllegalEdgeInfo {
-        size_t tri1;
-        size_t tri2;
-        Edge edge;
-    };
+    static constexpr std::int32_t kNoNeighbor = -1;
 
     std::vector<Point2<T>> m_points;
-    std::vector<TriangleRef> m_triangles;
-    EdgeToTriangles m_edgeMap;
+    std::vector<IndexedTriangle> m_triangles;
+    std::vector<std::array<std::int32_t, 3>> m_adj;
 
     std::vector<DebugStep<T>> m_history;
 
     bool buildInitialTriangulation();
-    void rebuildEdgeMap();
-    std::optional<IllegalEdgeInfo> findIllegalEdge() const;
-    std::optional<VertexIndex> oppositeVertex(const TriangleRef& tri, const Edge& edge) const;
-    bool isIllegalEdge(size_t tri1, size_t tri2, const Edge& edge) const;
-    void flipEdge(size_t tri1, size_t tri2, const Edge& edge);
-    void normalizeTriangle(TriangleRef& tri) const;
+    void buildAdjacency();
+    void legalizeEdges();
+    bool isIllegalEdge(size_t tri, size_t k) const;
+    void flipEdge(size_t tri, size_t k);
+    void normalizeTriangle(IndexedTriangle& tri) const;
 };
 
 } // namespace geo
