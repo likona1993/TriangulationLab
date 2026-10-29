@@ -1,5 +1,10 @@
 #pragma once
 
+#include <algorithm>
+#include <cmath>
+#include <optional>
+#include <vector>
+
 #include "geometry/types.h"
 
 namespace geo {
@@ -169,6 +174,40 @@ bool inCircumcircle(const geo::Point2<T>& a,
         (cx * cx + cy * cy) * (ax * by - ay * bx);
 
     return det > T(0);
+}
+
+// ============================================================
+//  Поиск дубликатов/близких вершин на входе (Этап 1 Roadmap:
+//  явная ошибка вместо молчаливого отказа EarClipping).
+//  Возвращает индекс первой вершины, для которой нашлась другая
+//  на расстоянии < eps, либо nullopt.
+//  O(n log n): сортировка по (x, y) + sweep с окном по x.
+// ============================================================
+template <typename T>
+std::optional<size_t> findDuplicateVertex(const Polygon2<T> &poly,
+                                          T eps = EPSILON<T>) {
+  const size_t n = poly.size();
+  std::vector<size_t> order(n);
+  for (size_t i = 0; i < n; ++i)
+    order[i] = i;
+
+  std::sort(order.begin(), order.end(), [&poly](size_t a, size_t b) {
+    if (poly[a].x != poly[b].x)
+      return poly[a].x < poly[b].x;
+    return poly[a].y < poly[b].y;
+  });
+
+  for (size_t i = 0; i < n; ++i) {
+    for (size_t j = i + 1; j < n; ++j) {
+      const T dx = poly[order[j]].x - poly[order[i]].x;
+      if (dx >= eps)
+        break; // окно по x закончилось
+      const T dy = poly[order[j]].y - poly[order[i]].y;
+      if (dx * dx + dy * dy < eps * eps)
+        return order[i];
+    }
+  }
+  return std::nullopt;
 }
 
 } // namespace geo

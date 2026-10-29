@@ -47,6 +47,11 @@ MonotoneTriangulation<T>::triangulate(const Polygon &polygon) {
     return result;
   }
 
+  if (const auto dup = findDuplicateVertex(polygon)) {
+      result.error = makeDuplicateVerticesError(geo::TriangulationAlgorithm::Monotone, *dup);
+      return result;
+  }
+
   const T eps = EPSILON<T>;
   if (!isSimplePolygon(polygon, eps)) {
       result.error = makeSelfIntersectingPolygonError(geo::TriangulationAlgorithm::Monotone);
@@ -55,6 +60,7 @@ MonotoneTriangulation<T>::triangulate(const Polygon &polygon) {
   // конец дублированного блока
 
   Polygon poly = polygon;
+  result.vertices = polygon;
 
   // Вектор для хранения добавленных диагоналей (для истории)
   DiagonalList diagonals;
@@ -78,7 +84,7 @@ MonotoneTriangulation<T>::triangulate(const Polygon &polygon) {
   for (const auto &piece : pieces) {
     GEO_ASSERT_INVARIANT(isMonotonePiece(poly, piece),
                          "makeMonotone invariant violated: SPLIT/MERGE vertices remain in piece");
-    if (!triangulateMonotonePiece(poly, piece, result.triangles)) {
+    if (!triangulateMonotonePiece(poly, piece, result.faces)) {
         result.error = makeError(
             ErrorCategory::Algorithm,
             ErrorCode::MonotonePieceTriangulationFailed,
@@ -87,7 +93,6 @@ MonotoneTriangulation<T>::triangulate(const Polygon &polygon) {
             );
     }
   }
-
 
   return result;
 }
@@ -160,13 +165,14 @@ bool MonotoneTriangulation<T>::makeMonotone(
       return false; // findLeftEdge не нашёл ребро слева — вырожденные данные
 
     DebugStep<T> step;
-    step.polygon_before = poly;
+    // polygon_before пустой = «все вершины запуска» (см. DebugStep):
+    // sweep работает сразу со всем полигоном, копировать его незачем.
+    // highlighted_vertices при пустом polygon_before — индексы в vertices.
     step.highlighted_vertices.push_back(vi);
     step.sweep_y = currentY;
     step.description = "Vertex " + std::to_string(vi) + " (" + vertexTypeName(types[vi]) + ")";
     for (size_t k = diagBefore; k < diagonals.size(); ++k) {
-        const auto& d = diagonals[k];
-        step.added_diagonals.emplace_back(poly[d.first], poly[d.second]);
+        step.added_diagonals.push_back(diagonals[k]);
     }
     history.push_back(std::move(step));
   }
@@ -241,7 +247,9 @@ Edge MonotoneTriangulation<T>::getNextEdge(const Polygon &poly,
 template <typename T>
 Edge MonotoneTriangulation<T>::getPrevEdge(const Polygon &poly,
                                            VertexIndex vi) {
-  return {(vi - 1 + poly.size()) % poly.size(), vi};
+  // vi сначала продвигается до size_t, потом вычитание —
+  // иначе при vi == 0 арифметика uint32_t даст неверный индекс
+  return {(vi + poly.size() - 1) % poly.size(), vi};
 }
 
 template <typename T>
@@ -511,18 +519,19 @@ MonotoneTriangulation<T>::classifyChains(const Polygon &poly,
 }
 
 template <typename T>
-void MonotoneTriangulation<T>::emitTriangle(const Polygon &poly, VertexIndex a,
+IndexedTriangle MonotoneTriangulation<T>::emitTriangle(const Polygon &poly, VertexIndex a,
                                             VertexIndex b, VertexIndex c,
-                                            Triangles &out) const {
+                                            std::vector<IndexedTriangle> &out) const {
+  IndexedTriangle face{a, b, c};
   if ((poly[b] - poly[a]).cross(poly[c] - poly[a]) < T(0))
-    out.push_back({poly[a], poly[c], poly[b]});
-  else
-    out.push_back({poly[a], poly[b], poly[c]});
+    face = {a, c, b};
+  out.push_back(face);
+  return face;
 }
 
 template <typename T>
 bool MonotoneTriangulation<T>::triangulateMonotonePiece(
-    const Polygon &poly, const MonotonePiece &piece, Triangles &out) const {
+    const Polygon &poly, const MonotonePiece &piece, std::vector<IndexedTriangle> &out) const {
   const size_t m = piece.size();
   if (m < 3)
     return false;
@@ -538,17 +547,14 @@ bool MonotoneTriangulation<T>::triangulateMonotonePiece(
   });
 
   // Логирует один шаг: только что добавленный треугольник + контур куска.
-  // polygon_before собран из piece, поэтому highlighted_vertices хранит
-  // ПОЗИЦИИ внутри piece (именно ими индексируется polygon_before в GUI),
-  // а не глобальные индексы вершин в poly.
-  std::function<void(VertexIndex, VertexIndex, VertexIndex)> logStep = [&](VertexIndex a, VertexIndex b, VertexIndex c) {
+  // polygon_before хранит сам piece (индексы вершин в poly), поэтому
+  // highlighted_vertices — ПОЗИЦИИ внутри piece (именно ими индексируется
+  // polygon_before в GUI), а не глобальные индексы вершин в poly.
+  std::function<void(VertexIndex, VertexIndex, VertexIndex, const IndexedTriangle&)> logStep =
+      [&](VertexIndex a, VertexIndex b, VertexIndex c, const IndexedTriangle& face) {
       DebugStep<T> step;
 
-      step.polygon_before.clear();
-      step.polygon_before.reserve(piece.size());
-      for (VertexIndex idx : piece) {
-          step.polygon_before.push_back(poly[idx]);
-      }
+      step.polygon_before = piece;
 
       auto posInPiece = [&piece](VertexIndex v) {
           return static_cast<size_t>(
@@ -556,7 +562,7 @@ bool MonotoneTriangulation<T>::triangulateMonotonePiece(
       };
       step.highlighted_vertices = {posInPiece(a), posInPiece(b), posInPiece(c)};
 
-      step.added_triangles.push_back(out.back());
+      step.added_faces.push_back(face);
       step.description = "Piece: triangle (" + std::to_string(a) + ", " +
                          std::to_string(b) + ", " + std::to_string(c) + ")";
       history.push_back(std::move(step));
@@ -571,8 +577,8 @@ bool MonotoneTriangulation<T>::triangulateMonotonePiece(
     if (chain[uj] != chain[stack.back()]) {
       // Другая цепь: воронка переключилась — видно весь стек целиком.
         for (size_t k = stack.size() - 1; k > 0; --k) {
-            emitTriangle(poly, piece[uj], piece[stack[k]], piece[stack[k - 1]], out);
-            logStep(piece[uj], piece[stack[k]], piece[stack[k - 1]]);
+            const auto face = emitTriangle(poly, piece[uj], piece[stack[k]], piece[stack[k - 1]], out);
+            logStep(piece[uj], piece[stack[k]], piece[stack[k - 1]], face);
         }
 
 
@@ -593,8 +599,8 @@ bool MonotoneTriangulation<T>::triangulateMonotonePiece(
         if (!inside)
           break;
 
-        emitTriangle(poly, piece[uj], piece[last], piece[t0], out);
-        logStep(piece[uj], piece[last], piece[t0]);
+        const auto face = emitTriangle(poly, piece[uj], piece[last], piece[t0], out);
+        logStep(piece[uj], piece[last], piece[t0], face);
 
         last = t0;
         stack.pop_back();
@@ -612,8 +618,8 @@ bool MonotoneTriangulation<T>::triangulateMonotonePiece(
   const size_t un = order[m - 1];
   for (size_t k = 0; k + 1 < stack.size(); ++k)
   {
-      emitTriangle(poly, piece[un], piece[stack[k]], piece[stack[k + 1]], out);
-      logStep(piece[un], piece[stack[k]], piece[stack[k + 1]]);
+      const auto face = emitTriangle(poly, piece[un], piece[stack[k]], piece[stack[k + 1]], out);
+      logStep(piece[un], piece[stack[k]], piece[stack[k + 1]], face);
   }
 
   return true;

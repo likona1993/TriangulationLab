@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
         const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
         std::printf("%8zu %4d %10zu %12.1f\n",
                     n, static_cast<int>(static_cast<bool>(result)),
-                    result.triangles.size(), ms);
+                    result.faces.size(), ms);
         std::fflush(stdout);
     }
     return 0;

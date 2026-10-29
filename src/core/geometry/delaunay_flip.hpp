@@ -20,6 +20,11 @@ TriangulationResult<T> DelaunayFlip<T>::triangulate(const Points& input)
         return result;
     }
 
+    if (const auto dup = findDuplicateVertex(m_points)) {
+        result.error = makeDuplicateVerticesError(TriangulationAlgorithm::DelaunayFlip, *dup);
+        return result;
+    }
+
     if (!buildInitialTriangulation()) {
         result.error = makeError(
             ErrorCategory::Algorithm,
@@ -42,20 +47,13 @@ TriangulationResult<T> DelaunayFlip<T>::triangulate(const Points& input)
         rebuildEdgeMap();
     }
 
-    result.triangles = exportTriangles();
-    return result;
-}
-
-template <typename T>
-std::optional<size_t> DelaunayFlip<T>::indexOfPoint(const Point& p) const
-{
-    for (size_t i = 0; i < m_points.size(); ++i) {
-        if (m_points[i] == p) {
-            return i;
-        }
+    result.vertices = input;
+    result.faces.reserve(m_triangles.size());
+    for (const auto& tri : m_triangles) {
+        result.faces.push_back({tri.a, tri.b, tri.c});
     }
 
-    return std::nullopt;
+    return result;
 }
 
 template <typename T>
@@ -69,26 +67,13 @@ bool DelaunayFlip<T>::buildInitialTriangulation()
         return false;
     }
 
+    // EarClipping уже отдаёт faces как индексы в исходный полигон — берём как есть
     m_triangles.clear();
-    m_triangles.reserve(result.triangles.size());
+    m_triangles.reserve(result.faces.size());
 
-    for (auto tri : result.triangles) {
-
-        auto ia = indexOfPoint(tri.v0);
-        auto ib = indexOfPoint(tri.v1);
-        auto ic = indexOfPoint(tri.v2);
-
-        if (!ia.has_value() || !ib.has_value() || !ic.has_value()) {
-            return false;
-        }
-
-        TriangleRef ref;
-        ref.a = *ia;
-        ref.b = *ib;
-        ref.c = *ic;
-
+    for (const auto& f : result.faces) {
+        TriangleRef ref{f[0], f[1], f[2]};
         normalizeTriangle(ref);
-
         m_triangles.push_back(ref);
     }
 
@@ -140,9 +125,10 @@ DelaunayFlip<T>::findIllegalEdge() const
 
 
 template <typename T>
-std::optional<size_t> DelaunayFlip<T>::oppositeVertex(const TriangleRef& tri, const Edge& edge) const
+std::optional<typename DelaunayFlip<T>::VertexIndex>
+DelaunayFlip<T>::oppositeVertex(const TriangleRef& tri, const Edge& edge) const
 {
-    auto matches = [&](size_t x, size_t y) {
+    auto matches = [&](VertexIndex x, VertexIndex y) {
         return (x == edge.from && y == edge.to) ||
                (x == edge.to && y == edge.from);
     };
@@ -198,20 +184,11 @@ bool DelaunayFlip<T>::isIllegalEdge(size_t tri1, size_t tri2, const Edge& edge) 
 template<typename T>
 void DelaunayFlip<T>::normalizeTriangle(TriangleRef& tri) const
 {
-    Triangle2<T> tmp{ m_points[tri.a], m_points[tri.b], m_points[tri.c] };
-    ensureCCW(tmp);
-
-    auto i0 = indexOfPoint(tmp.v0);
-    auto i1 = indexOfPoint(tmp.v1);
-    auto i2 = indexOfPoint(tmp.v2);
-
-    if (!i0 || !i1 || !i2) {
-        return;
+    // Приводим к CCW перестановкой двух индексов (без конвертации в координаты)
+    const auto& a = m_points[tri.a];
+    if ((m_points[tri.b] - a).cross(m_points[tri.c] - a) < T(0)) {
+        std::swap(tri.b, tri.c);
     }
-
-    tri.a = *i0;
-    tri.b = *i1;
-    tri.c = *i2;
 }
 
 template<typename T>
@@ -227,8 +204,8 @@ void DelaunayFlip<T>::flipEdge(size_t tri1, size_t tri2, const Edge& edge)
         return;
     }
 
-    TriangleRef new1{ *o1, *o2, edge.from };
-    TriangleRef new2{ *o2, *o1, edge.to };
+    TriangleRef new1{ *o1, *o2, static_cast<VertexIndex>(edge.from) };
+    TriangleRef new2{ *o2, *o1, static_cast<VertexIndex>(edge.to) };
 
     normalizeTriangle(new1);
     normalizeTriangle(new2);
@@ -238,32 +215,16 @@ void DelaunayFlip<T>::flipEdge(size_t tri1, size_t tri2, const Edge& edge)
 
     DebugStep<T> step;
     step.description = "Flip illegal edge";
-    step.polygon_before = m_points;
+    // polygon_before пустой = «все вершины запуска» (см. DebugStep):
+    // highlighted_vertices — индексы в m_points.
     step.highlighted_vertices = {edge.from, edge.to, *o1, *o2};
-    step.added_diagonals.emplace_back(m_points[*o1], m_points[*o2]);
-    step.added_triangles = exportTriangles();
+    step.added_diagonals.emplace_back(*o1, *o2);
+    step.added_faces.reserve(m_triangles.size());
+    for (const auto& tri : m_triangles) {
+        step.added_faces.push_back({tri.a, tri.b, tri.c});
+    }
     step.replaces_state = true;
     m_history.push_back(step);
 }
-
-
-
-template<typename T>
-typename DelaunayFlip<T>::Triangles DelaunayFlip<T>::exportTriangles() const
-{
-    Triangles result;
-    result.reserve(m_triangles.size());
-
-    for (const auto& tri : m_triangles) {
-        result.emplace_back(
-            m_points[tri.a],
-            m_points[tri.b],
-            m_points[tri.c]
-            );
-    }
-
-    return result;
-}
-
 
 }// namespace geo

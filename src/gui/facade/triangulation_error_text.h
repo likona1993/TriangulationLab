@@ -16,6 +16,8 @@ inline QString errorText(geo::ErrorCode code) {
         return QStringLiteral("Polygon is degenerate");
     case ErrorCode::SelfIntersectingPolygon:
         return QStringLiteral("Polygon is self-intersecting");
+    case ErrorCode::DuplicateVertices:
+        return QStringLiteral("Polygon has duplicate vertices");
     case ErrorCode::EarNotFound:
         return QStringLiteral("No ear found in polygon");
     case ErrorCode::MonotoneDecompositionFailed:

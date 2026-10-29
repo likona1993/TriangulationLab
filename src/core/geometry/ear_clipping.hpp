@@ -1,6 +1,7 @@
 #pragma once
 #include "ear_clipping.h"
 #include <algorithm>
+#include <numeric>
 #include <string>
 
 #include "utils/geometry_predicates.h"
@@ -49,12 +50,23 @@ TriangulationResult<T> EarClipping<T>::triangulate(const Polygon2<T>& input, T e
         return result;
     }
 
+    if (const auto dup = findDuplicateVertex(input, eps)) {
+        result.error = makeDuplicateVerticesError(TriangulationAlgorithm::EarClipping, *dup);
+        return result;
+    }
+
     if (!isSimplePolygon(input, eps)) {
         result.error =  makeSelfIntersectingPolygonError(TriangulationAlgorithm::EarClipping);
         return result;
     }
 
     Polygon2<T> working = input;
+    result.vertices = input;
+
+    // Исходные индексы вершин, упорядоченные как working:
+    // при отрезании уха вершина удаляется из обоих векторов одновременно
+    std::vector<VertexIndex> indices(input.size());
+    std::iota(indices.begin(), indices.end(), VertexIndex{0});
 
     // Лямбда, пытающаяся отрезать одно ухо с заданным эпсилон
     auto tryCutEar = [&](T current_eps) -> bool {
@@ -63,19 +75,20 @@ TriangulationResult<T> EarClipping<T>::triangulate(const Polygon2<T>& input, T e
             if (isEar(working, i, current_eps)) {
                 // Сохраняем состояние ДО удаления
                 DebugStep<T> step;
-                step.polygon_before = working;
+                step.polygon_before = indices;
                 step.highlighted_vertices.push_back(i);
                 step.description = "Cut ear at vertex " + std::to_string(i);
 
                 const size_t prev_idx = (i - 1 + n) % n;
                 const size_t next_idx = (i + 1) % n;
-                step.added_triangles.push_back(Triangle2<T>(working[prev_idx], working[i], working[next_idx]));
+                step.added_faces.push_back({indices[prev_idx], indices[i], indices[next_idx]});
 
                 m_history.push_back(step);
-                result.triangles.push_back(step.added_triangles[0]);
+                result.faces.push_back({indices[prev_idx], indices[i], indices[next_idx]});
 
                 // Удаляем вершину-ухо
                 working.erase(working.begin() + i);
+                indices.erase(indices.begin() + i);
                 return true;
             }
         }
@@ -108,12 +121,12 @@ TriangulationResult<T> EarClipping<T>::triangulate(const Polygon2<T>& input, T e
     // Остался последний треугольник
     if (working.size() == 3) {
         DebugStep<T> step;
-        step.polygon_before = working;
+        step.polygon_before = indices;
         step.highlighted_vertices.push_back(0);
         step.description = "Final triangle";
-        step.added_triangles.push_back(Triangle2<T>(working[0], working[1], working[2]));
+        step.added_faces.push_back({indices[0], indices[1], indices[2]});
         m_history.push_back(step);
-        result.triangles.push_back(step.added_triangles[0]);
+        result.faces.push_back({indices[0], indices[1], indices[2]});
     }
 
     return result;

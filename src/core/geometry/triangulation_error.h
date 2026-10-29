@@ -18,6 +18,7 @@ enum class ErrorCode {
     PolygonNotClosed,
     DegeneratePolygon,
     SelfIntersectingPolygon,
+    DuplicateVertices,
     EarNotFound,
     MonotoneDecompositionFailed,
     MonotonePieceTriangulationFailed,
@@ -56,6 +57,15 @@ inline TriangulationError makeSelfIntersectingPolygonError(geo::TriangulationAlg
         ErrorCategory::Input,
         ErrorCode::SelfIntersectingPolygon,
         "Input polygon size < 3",
+        std::move(algorithm)
+    };
+}
+
+inline TriangulationError makeDuplicateVerticesError(geo::TriangulationAlgorithm algorithm, size_t vertexIndex) {
+    return TriangulationError{
+        ErrorCategory::Input,
+        ErrorCode::DuplicateVertices,
+        "Duplicate or near-duplicate vertex at index " + std::to_string(vertexIndex),
         std::move(algorithm)
     };
 }

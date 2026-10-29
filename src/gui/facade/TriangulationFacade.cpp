@@ -126,9 +126,18 @@ bool TriangulationFacade::triangulate() {
     }
 
     if (bool(result)) {
-        m_triangles = std::move(result.triangles);
+        // Единственная точка конвертации «индексы → координаты» для результата
+        // (Этап 1 Roadmap: визуализатор — легальный экспортный слой).
+        m_triangles.reserve(result.faces.size());
+        for (const auto& f : result.faces) {
+            m_triangles.emplace_back(
+                result.vertices[f[0]],
+                result.vertices[f[1]],
+                result.vertices[f[2]]);
+        }
 
-        // Передаём историю в DebugFacade
+        // Передаём историю в DebugFacade вместе с вершинами запуска,
+        // на которые ссылаются индексы шагов
         std::vector<geo::DebugStep<double>> history;
         switch (m_currentAlgorithm)
         {
@@ -143,7 +152,7 @@ bool TriangulationFacade::triangulate() {
             break;
         }
 
-        m_debugFacade->setHistory(history);
+        m_debugFacade->setHistory(result.vertices, history);
 
 
         emitTriangulationUpdate();

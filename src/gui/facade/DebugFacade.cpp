@@ -7,13 +7,16 @@ DebugFacade::DebugFacade(QObject* parent)
 {
 }
 
-void DebugFacade::setHistory(const std::vector<geo::DebugStep<double>>& history) {
+void DebugFacade::setHistory(const geo::Polygon2<double>& vertices,
+                             const std::vector<geo::DebugStep<double>>& history) {
+    m_vertices = vertices;
     m_history = history;
     m_currentStep = -1; // Начинаем с начального состояния
     emit stepChanged(m_currentStep, getTotalSteps());
 }
 
 void DebugFacade::clear() {
+    m_vertices.clear();
     m_history.clear();
     m_currentStep = -1;
     emit stepChanged(m_currentStep, 0);
@@ -45,18 +48,31 @@ void DebugFacade::goToStep(int step) {
 }
 
 geo::Polygon2<double> DebugFacade::getCurrentPolygon() const {
+    const geo::DebugStep<double>* step = nullptr;
     if (m_currentStep == -1) {
-        // Начальное состояние: возвращаем полигон из первого шага (до отрезания)
+        // Начальное состояние: полигон из первого шага (до отрезания)
         if (!m_history.empty()) {
-            return m_history[0].polygon_before;
+            step = &m_history[0];
         }
+    } else if (m_currentStep < getTotalSteps()) {
+        step = &m_history[m_currentStep];
+    }
+
+    if (!step) {
         return {};
     }
 
-    if (m_currentStep < getTotalSteps()) {
-        return m_history[m_currentStep].polygon_before;
+    // Пустой polygon_before = «все вершины запуска» (см. geo::DebugStep)
+    if (step->polygon_before.empty()) {
+        return m_vertices;
     }
-    return {};
+
+    geo::Polygon2<double> polygon;
+    polygon.reserve(step->polygon_before.size());
+    for (geo::VertexIndex idx : step->polygon_before) {
+        polygon.push_back(m_vertices[idx]);
+    }
+    return polygon;
 }
 
 std::vector<geo::Triangle2<double>> DebugFacade::getAccumulatedTriangles() const {
@@ -66,9 +82,11 @@ std::vector<geo::Triangle2<double>> DebugFacade::getAccumulatedTriangles() const
         if (step.replaces_state) {
             // Шаг со снимком полного состояния: всё накопленное до него
             // больше не актуально (Delaunay flip после ear-clipping префикса).
-            result = step.added_triangles;
-        } else {
-            result.insert(result.end(), step.added_triangles.begin(), step.added_triangles.end());
+            result.clear();
+        }
+        result.reserve(result.size() + step.added_faces.size());
+        for (const auto& f : step.added_faces) {
+            result.emplace_back(m_vertices[f[0]], m_vertices[f[1]], m_vertices[f[2]]);
         }
     }
     return result;
@@ -77,7 +95,13 @@ std::vector<geo::Triangle2<double>> DebugFacade::getAccumulatedTriangles() const
 std::vector<std::pair<geo::Point2<double>, geo::Point2<double> > > DebugFacade::getAddedDiagonals() const
 {
     if (m_currentStep >= 0 && m_currentStep < getTotalSteps()) {
-        return m_history[m_currentStep].added_diagonals;
+        std::vector<std::pair<geo::Point2<double>, geo::Point2<double>>> result;
+        const auto& diagonals = m_history[m_currentStep].added_diagonals;
+        result.reserve(diagonals.size());
+        for (const auto& d : diagonals) {
+            result.emplace_back(m_vertices[d.first], m_vertices[d.second]);
+        }
+        return result;
     }
     return {};
 }

@@ -22,9 +22,8 @@ template <typename T> struct EdgeCmp {
 template <typename T> class MonotoneTriangulation {
 public:
   using Polygon = Polygon2<T>;
-  using Triangles = std::vector<Triangle2<T>>;
-  // Тип для индекса вершины
-  using VertexIndex = size_t;
+  // Индекс вершины — единый geo::VertexIndex (uint32_t) из
+  // triangulation_types.h; локального алиаса больше нет (Этап 1 Roadmap).
   // Для хранения статуса используем set с компаратором, зависящим от currentY
   using StatusSet = std::set<Edge, EdgeCmp<T>>;
 
@@ -118,13 +117,15 @@ private:
   std::vector<Chain> classifyChains(const Polygon &poly,
                                     const MonotonePiece &piece) const;
 
-  // гарантия CCW-ориентации выходных треугольников
-  void emitTriangle(const Polygon &poly, VertexIndex a, VertexIndex b,
-                    VertexIndex c, Triangles &out) const;
+  // гарантия CCW-ориентации выходных треугольников; возвращает записанную
+  // грань (после возможной перестановки вершин)
+  IndexedTriangle emitTriangle(const Polygon &poly, VertexIndex a, VertexIndex b,
+                               VertexIndex c,
+                               std::vector<IndexedTriangle> &out) const;
 
   // триангуляция монотонного куска треугольниками
   bool triangulateMonotonePiece(const Polygon &poly, const MonotonePiece &piece,
-                                Triangles &out) const;
+                                std::vector<IndexedTriangle> &out) const;
 
   mutable std::vector<DebugStep<T>> history;
 };

@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <map>
 #include <string>
@@ -9,6 +11,7 @@
 #include "geometry/types.h"
 #include "utils/geometry_predicates.h"
 #include "utils/numeric.h"
+#include "test_triangulation_utils.h"
 
 using namespace geo;
 
@@ -285,39 +288,43 @@ void expectValidTriangulation(
     std::size_t expectedTriangleCount)
 {
     ASSERT_TRUE(result);
-    ASSERT_EQ(result.triangles.size(), expectedTriangleCount);
+    // Инвариант-проверки ниже исторически написаны над координатными
+    // треугольниками; materializeTriangles — легальная точка конвертации
+    // в тестовом слое (Этап 1 Roadmap).
+    const auto triangles = materializeTriangles(result);
+    ASSERT_EQ(triangles.size(), expectedTriangleCount);
 
     EXPECT_NEAR(
-        sumTrianglesArea(result.triangles),
+        sumTrianglesArea(triangles),
         absArea(polygon),
         EPSILON<T>);
 
     EXPECT_TRUE(
         allTrianglesNonDegenerate(
-            result.triangles,
+            triangles,
             EPSILON<T>));
 
     EXPECT_TRUE(
         allTrianglesCCW(
-            result.triangles,
+            triangles,
             EPSILON<T>));
 
     EXPECT_TRUE(
         allPolygonBoundaryEdgesPresent(
             polygon,
-            result.triangles));
+            triangles));
 
     EXPECT_TRUE(
         allVerticesCovered(
             polygon,
-            result.triangles));
+            triangles));
 
     // Квадратично по числу рёбер — для больших входов пропускаем.
-    if (result.triangles.size() <= 5000) {
-        EXPECT_TRUE(noEdgeIntersections(result.triangles));
+    if (triangles.size() <= 5000) {
+        EXPECT_TRUE(noEdgeIntersections(triangles));
     }
 
-    EXPECT_TRUE(allInteriorEdgesLocallyDelaunay(result.triangles));
+    EXPECT_TRUE(allInteriorEdgesLocallyDelaunay(triangles));
 
 }
 
@@ -430,13 +437,14 @@ TEST(DelaunayFlipTest, RhombusUsesExpectedDiagonal) {
 
     expectValidTriangulation(rhombus, result, 2);
 
+    const auto triangles = materializeTriangles(result);
     EXPECT_TRUE(hasEdge(
-        result.triangles,
+        triangles,
         Point2<double>{-1, 0},
         Point2<double>{1, 0}));
 
     EXPECT_FALSE(hasEdge(
-        result.triangles,
+        triangles,
         Point2<double>{0, -2},
         Point2<double>{0, 2}));
 }
@@ -457,16 +465,17 @@ TEST(DelaunayFlipTest, ConvexPentagonMatchesExpectedTriangulation) {
 
     expectValidTriangulation(polygon, result, 3);
 
+    const auto triangles = materializeTriangles(result);
     EXPECT_TRUE(hasTriangle(
-        result.triangles,
+        triangles,
         polygon[0], polygon[1], polygon[3]));
 
     EXPECT_TRUE(hasTriangle(
-        result.triangles,
+        triangles,
         polygon[0], polygon[3], polygon[4]));
 
     EXPECT_TRUE(hasTriangle(
-        result.triangles,
+        triangles,
         polygon[1], polygon[2], polygon[3]));
 }
 
@@ -482,13 +491,14 @@ TEST(DelaunayFlipTest, CoCircularQuadrilateralIsStable) {
 
     expectValidTriangulation(square, result, 2);
 
+    const auto triangles = materializeTriangles(result);
     const bool firstDiagonal = hasEdge(
-        result.triangles,
+        triangles,
         Point2<double>{0, 0},
         Point2<double>{1, 1});
 
     const bool secondDiagonal = hasEdge(
-        result.triangles,
+        triangles,
         Point2<double>{1, 0},
         Point2<double>{0, 1});
 
@@ -577,8 +587,9 @@ TEST(DelaunayFlipTest, FlipStepsCarryFullStateSnapshot) {
         }
 
         EXPECT_TRUE(step.replaces_state);
-        EXPECT_EQ(step.added_triangles.size(), polygon.size() - 2);
-        EXPECT_EQ(step.polygon_before.size(), polygon.size());
+        EXPECT_EQ(step.added_faces.size(), polygon.size() - 2);
+        // polygon_before пустой = sentinel «все вершины запуска»
+        EXPECT_TRUE(step.polygon_before.empty());
         EXPECT_EQ(step.highlighted_vertices.size(), 4u);
     }
 }
@@ -609,10 +620,9 @@ TEST(DelaunayFlipTest, ThousandContourPointsSatisfyAllInvariants) {
 }
 
 TEST(DelaunayFlipTest, DuplicatePointsAreRejected) {
-    // Текущее поведение, зафиксированное тестом: точный дубликат вершины
-    // (соседний или нет) приводит к отказу начальной Ear Clipping-фазы,
-    // который DelaunayFlip оборачивает в InitialTriangulationFailed.
-    // Осмысленная обработка дубликатов — задача Этапа 1 ROADMAP.md.
+    // Поведение с Этапа 1 ROADMAP.md: точный дубликат вершины (соседний
+    // или нет) отклоняется явной ошибкой DuplicateVertices на входе,
+    // а не побочным отказом начальной Ear Clipping-фазы.
     const Polygon2<double> dupConsecutive = {
         {0, 0}, {2, 0}, {2, 0}, {2, 2}, {0, 2}
     };
@@ -626,15 +636,14 @@ TEST(DelaunayFlipTest, DuplicatePointsAreRejected) {
 
         EXPECT_FALSE(result);
         ASSERT_TRUE(result.error.has_value());
-        EXPECT_EQ(result.error->code, ErrorCode::InitialTriangulationFailed);
-        EXPECT_TRUE(result.triangles.empty());
+        EXPECT_EQ(result.error->code, ErrorCode::DuplicateVertices);
+        EXPECT_TRUE(result.faces.empty());
     }
 }
 
 TEST(DelaunayFlipTest, NearDuplicatePointsBehavior) {
     // Поведение зависит от EPSILON: точки ближе ~1e-10 считаются совпадающими
-    // и дают тот же отказ, что и точные дубликаты; точки дальше ~1e-9
-    // триангулируются как обычные.
+    // и дают DuplicateVertices; точки дальше ~1e-9 триангулируются как обычные.
     const Polygon2<double> tooClose = {
         {0, 0}, {2, 0}, {2 + 1e-12, 1e-12}, {2, 2}, {0, 2}
     };
@@ -646,7 +655,7 @@ TEST(DelaunayFlipTest, NearDuplicatePointsBehavior) {
     const auto rejectedResult = rejected.triangulate(tooClose);
     EXPECT_FALSE(rejectedResult);
     ASSERT_TRUE(rejectedResult.error.has_value());
-    EXPECT_EQ(rejectedResult.error->code, ErrorCode::InitialTriangulationFailed);
+    EXPECT_EQ(rejectedResult.error->code, ErrorCode::DuplicateVertices);
 
     DelaunayFlip<double> accepted;
     const auto acceptedResult = accepted.triangulate(farEnough);
@@ -677,7 +686,7 @@ TEST(DelaunayFlipTest, SelfIntersectingPolygonIsRejected) {
     const auto result = delaunayFlip.triangulate(bowTie);
 
     EXPECT_FALSE(result);
-    EXPECT_TRUE(result.triangles.empty());
+    EXPECT_TRUE(result.faces.empty());
 }
 
 TEST(DelaunayFlipTest, AllCollinearPolygonIsRejected) {
@@ -690,7 +699,7 @@ TEST(DelaunayFlipTest, AllCollinearPolygonIsRejected) {
     const auto result = delaunayFlip.triangulate(collinear);
 
     EXPECT_FALSE(result);
-    EXPECT_TRUE(result.triangles.empty());
+    EXPECT_TRUE(result.faces.empty());
 }
 
 TEST(DelaunayFlipTest, CollinearVerticesCanBeRemovedBeforeTriangulation) {
@@ -729,13 +738,14 @@ TEST(DelaunayFlipTest, SequentialRunsDoNotMixGeometry) {
 
     expectValidTriangulation(rhombus, secondResult, 2);
 
+    const auto triangles = materializeTriangles(secondResult);
     EXPECT_TRUE(hasEdge(
-        secondResult.triangles,
+        triangles,
         Point2<double>{-1, 0},
         Point2<double>{1, 0}));
 
     EXPECT_FALSE(hasEdge(
-        secondResult.triangles,
+        triangles,
         Point2<double>{0, -2},
         Point2<double>{0, 2}));
 }
@@ -757,4 +767,69 @@ TEST(DelaunayFlipTest, DebugHistoryIsResetBetweenRuns) {
 
     ASSERT_TRUE(delaunayFlip.triangulate(pentagon));
     EXPECT_FALSE(delaunayFlip.getDebugHistory().empty());
+}
+
+// ============================================================
+// Индексный вывод (faces + vertices) — Этап 1 Roadmap
+// ============================================================
+
+namespace {
+
+void expectIndexedResultValid(const Polygon2<double>& input) {
+    DelaunayFlip<double> delaunayFlip;
+    auto res = delaunayFlip.triangulate(input);
+    ASSERT_TRUE(res);
+
+    const size_t n = input.size();
+
+    // vertices — это исходный полигон без изменений
+    ASSERT_EQ(res.vertices.size(), n);
+    for (size_t i = 0; i < n; ++i) {
+        EXPECT_EQ(res.vertices[i], input[i]);
+    }
+
+    // количество граней = n - 2
+    ASSERT_EQ(res.faces.size(), n - 2);
+
+    for (size_t i = 0; i < res.faces.size(); ++i) {
+        const auto& f = res.faces[i];
+        for (auto idx : f) {
+            EXPECT_LT(idx, res.vertices.size());
+        }
+
+        // ориентация грани — CCW (инвариант сохраняется и после флипов)
+        Polygon2<double> triPoly = {
+            res.vertices[f[0]], res.vertices[f[1]], res.vertices[f[2]]};
+        EXPECT_GT(signedArea2D(triPoly), 0.0);
+    }
+}
+
+} // namespace
+
+TEST(DelaunayFlipIndexedTest, SquareFaces) {
+    expectIndexedResultValid({{0, 0}, {1, 0}, {1, 1}, {0, 1}});
+}
+
+TEST(DelaunayFlipIndexedTest, LShapeFaces) {
+    expectIndexedResultValid({{0, 0}, {2, 0}, {2, 1}, {1, 1}, {1, 2}, {0, 2}});
+}
+
+TEST(DelaunayFlipIndexedTest, ZigzagCorridorFacesAfterFlips) {
+    // Вход с несколькими флипами: faces должны оставаться валидными
+    // и после локальных перестроений триангуляции.
+    expectIndexedResultValid({
+        {0.0, 0.0}, {2.0, 0.25}, {4.0, 0.0}, {6.0, 0.25}, {8.0, 0.0},
+        {8.0, 3.0}, {6.0, 2.75}, {4.0, 3.0}, {2.0, 2.75}, {0.0, 3.0}});
+}
+
+TEST(DelaunayFlipIndexedTest, ErrorPathsLeaveFacesEmpty) {
+    DelaunayFlip<double> delaunayFlip;
+
+    auto res = delaunayFlip.triangulate({{0, 0}, {1, 1}, {0, 1}, {1, 0}}); // self-intersecting
+    EXPECT_FALSE(res);
+    EXPECT_TRUE(res.faces.empty());
+
+    res = delaunayFlip.triangulate({{0, 0}, {1, 0}}); // < 3 вершин
+    EXPECT_FALSE(res);
+    EXPECT_TRUE(res.faces.empty());
 }

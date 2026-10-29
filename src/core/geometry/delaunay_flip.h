@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <map>
+#include <utility>
 
 #include "triangulation_types.h"
 #include "types.h"
@@ -16,8 +17,7 @@ class DelaunayFlip {
 public:
     using Point = Point2<T>;
     using Points = std::vector<Point>;
-    using Triangles = std::vector<Triangle2<T>>;
-    using VertexIndex = size_t;
+    using VertexIndex = geo::VertexIndex;
     using EdgeKey = geo::Edge;
     using EdgeToTriangles = std::map<EdgeKey, std::vector<size_t>, geo::EdgeLess>;
 
@@ -46,15 +46,12 @@ private:
     std::vector<DebugStep<T>> m_history;
 
     bool buildInitialTriangulation();
-    std::optional<size_t> indexOfPoint(const Point& p) const;
     void rebuildEdgeMap();
     std::optional<IllegalEdgeInfo> findIllegalEdge() const;
-    std::optional<size_t> oppositeVertex(const TriangleRef& tri, const Edge& edge) const;
+    std::optional<VertexIndex> oppositeVertex(const TriangleRef& tri, const Edge& edge) const;
     bool isIllegalEdge(size_t tri1, size_t tri2, const Edge& edge) const;
     void flipEdge(size_t tri1, size_t tri2, const Edge& edge);
     void normalizeTriangle(TriangleRef& tri) const;
-
-    Triangles exportTriangles() const;
 };
 
 } // namespace geo

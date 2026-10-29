@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <array>
 #include "geometry/monotone_triangulation.h"
 #include "geometry/types.h"
+#include "test_triangulation_utils.h"
 
 using namespace geo;
 
@@ -115,7 +118,7 @@ TEST(MonotoneTriangulationTest, RejectsPolygonWithTooFewVertices) {
 
     EXPECT_FALSE(result);
     EXPECT_EQ(result.error->code, geo::ErrorCode::NotEnoughVertices);
-    EXPECT_TRUE(result.triangles.empty());
+    EXPECT_TRUE(result.faces.empty());
     EXPECT_TRUE(mt.getDebugHistory().empty());
 }
 
@@ -128,7 +131,7 @@ TEST(MonotoneTriangulationTest, RejectsSelfIntersectingPolygon) {
 
     EXPECT_FALSE(result);
     EXPECT_EQ(result.error->code, geo::ErrorCode::SelfIntersectingPolygon);
-    EXPECT_TRUE(result.triangles.empty());
+    EXPECT_TRUE(result.faces.empty());
     EXPECT_TRUE(mt.getDebugHistory().empty());
 }
 
@@ -141,18 +144,19 @@ TEST(MonotoneTriangulationTest, TriangulatesSquareIntoTwoTriangles) {
     auto result = mt.triangulate(square);
 
     ASSERT_TRUE(result) << result.error->debugMessage;
-    EXPECT_EQ(result.triangles.size(), 2u);
+    const auto triangles = materializeTriangles(result);
+    EXPECT_EQ(triangles.size(), 2u);
 
-    EXPECT_NEAR(sumTrianglesArea(result.triangles), absArea(square), EPSILON<double>);
-    EXPECT_TRUE(allTrianglesNonDegenerate(result.triangles, EPSILON<double>));
-    EXPECT_TRUE(allTrianglesCCW(result.triangles, EPSILON<double>));
+    EXPECT_NEAR(sumTrianglesArea(triangles), absArea(square), EPSILON<double>);
+    EXPECT_TRUE(allTrianglesNonDegenerate(triangles, EPSILON<double>));
+    EXPECT_TRUE(allTrianglesCCW(triangles, EPSILON<double>));
 
     const auto& history = mt.getDebugHistory();
     EXPECT_FALSE(history.empty());
 
     bool hasTriangleStep = false;
     for (const auto& step : history) {
-        if (!step.added_triangles.empty()) {
+        if (!step.added_faces.empty()) {
             hasTriangleStep = true;
             EXPECT_FALSE(step.description.empty());
         }
@@ -169,11 +173,12 @@ TEST(MonotoneTriangulationTest, TriangulatesConcavePolygonIntoNMinusTwoTriangles
     auto result = mt.triangulate(poly);
 
     ASSERT_TRUE(result) << result.error->debugMessage;
-    EXPECT_EQ(result.triangles.size(), poly.size() - 2);
+    const auto triangles = materializeTriangles(result);
+    EXPECT_EQ(triangles.size(), poly.size() - 2);
 
-    EXPECT_NEAR(sumTrianglesArea(result.triangles), absArea(poly), EPSILON<double>);
-    EXPECT_TRUE(allTrianglesNonDegenerate(result.triangles, EPSILON<double>));
-    EXPECT_TRUE(allTrianglesCCW(result.triangles, EPSILON<double>));
+    EXPECT_NEAR(sumTrianglesArea(triangles), absArea(poly), EPSILON<double>);
+    EXPECT_TRUE(allTrianglesNonDegenerate(triangles, EPSILON<double>));
+    EXPECT_TRUE(allTrianglesCCW(triangles, EPSILON<double>));
 
     EXPECT_FALSE(mt.getDebugHistory().empty());
 }
@@ -203,10 +208,11 @@ TEST(MonotoneTriangulationTest, RecordsDiagonalsForSplitMergePolygon) {
     auto result = mt.triangulate(poly);
 
     ASSERT_TRUE(result) << result.error->debugMessage;
-    EXPECT_EQ(result.triangles.size(), poly.size() - 2);
-    EXPECT_NEAR(sumTrianglesArea(result.triangles), absArea(poly), EPSILON<double>);
-    EXPECT_TRUE(allTrianglesNonDegenerate(result.triangles, EPSILON<double>));
-    EXPECT_TRUE(allTrianglesCCW(result.triangles, EPSILON<double>));
+    const auto triangles = materializeTriangles(result);
+    EXPECT_EQ(triangles.size(), poly.size() - 2);
+    EXPECT_NEAR(sumTrianglesArea(triangles), absArea(poly), EPSILON<double>);
+    EXPECT_TRUE(allTrianglesNonDegenerate(triangles, EPSILON<double>));
+    EXPECT_TRUE(allTrianglesCCW(triangles, EPSILON<double>));
 
     const auto& history = mt.getDebugHistory();
     ASSERT_FALSE(history.empty());
@@ -235,10 +241,11 @@ TEST(MonotoneTriangulationTest, TriangulatesConvexPentagon) {
     auto result = mt.triangulate(pentagon);
 
     ASSERT_TRUE(result) << result.error->debugMessage;
-    EXPECT_EQ(result.triangles.size(), pentagon.size() - 2);
-    EXPECT_NEAR(sumTrianglesArea(result.triangles), absArea(pentagon), 1e-9);
-    EXPECT_TRUE(allTrianglesNonDegenerate(result.triangles, EPSILON<double>));
-    EXPECT_TRUE(allTrianglesCCW(result.triangles, EPSILON<double>));
+    const auto triangles = materializeTriangles(result);
+    EXPECT_EQ(triangles.size(), pentagon.size() - 2);
+    EXPECT_NEAR(sumTrianglesArea(triangles), absArea(pentagon), 1e-9);
+    EXPECT_TRUE(allTrianglesNonDegenerate(triangles, EPSILON<double>));
+    EXPECT_TRUE(allTrianglesCCW(triangles, EPSILON<double>));
 }
 
 TEST(MonotoneTriangulationTest, TriangulatesConvexHexagon) {
@@ -251,10 +258,11 @@ TEST(MonotoneTriangulationTest, TriangulatesConvexHexagon) {
     auto result = mt.triangulate(hexagon);
 
     ASSERT_TRUE(result) << result.error->debugMessage;
-    EXPECT_EQ(result.triangles.size(), hexagon.size() - 2);
-    EXPECT_NEAR(sumTrianglesArea(result.triangles), absArea(hexagon), 1e-9);
-    EXPECT_TRUE(allTrianglesNonDegenerate(result.triangles, EPSILON<double>));
-    EXPECT_TRUE(allTrianglesCCW(result.triangles, EPSILON<double>));
+    const auto triangles = materializeTriangles(result);
+    EXPECT_EQ(triangles.size(), hexagon.size() - 2);
+    EXPECT_NEAR(sumTrianglesArea(triangles), absArea(hexagon), 1e-9);
+    EXPECT_TRUE(allTrianglesNonDegenerate(triangles, EPSILON<double>));
+    EXPECT_TRUE(allTrianglesCCW(triangles, EPSILON<double>));
 }
 
 // Прямоугольник 10x10 с двумя треугольными вырезами
@@ -270,10 +278,11 @@ TEST(MonotoneTriangulationTest, TriangulatesRectangleWithTriangularCutouts) {
     auto result = mt.triangulate(poly);
 
     ASSERT_TRUE(result) << result.error->debugMessage;
-    EXPECT_EQ(result.triangles.size(), poly.size() - 2);
-    EXPECT_NEAR(sumTrianglesArea(result.triangles), absArea(poly), 1e-9);
-    EXPECT_TRUE(allTrianglesNonDegenerate(result.triangles, EPSILON<double>));
-    EXPECT_TRUE(allTrianglesCCW(result.triangles, EPSILON<double>));
+    const auto triangles = materializeTriangles(result);
+    EXPECT_EQ(triangles.size(), poly.size() - 2);
+    EXPECT_NEAR(sumTrianglesArea(triangles), absArea(poly), 1e-9);
+    EXPECT_TRUE(allTrianglesNonDegenerate(triangles, EPSILON<double>));
+    EXPECT_TRUE(allTrianglesCCW(triangles, EPSILON<double>));
 }
 
 // Вход, заданный по часовой стрелке: после нормализации ensureCCW
@@ -286,9 +295,10 @@ TEST(MonotoneTriangulationTest, TriangulatesClockwiseInputAfterNormalization) {
     auto result = mt.triangulate(square);
 
     ASSERT_TRUE(result) << result.error->debugMessage;
-    EXPECT_EQ(result.triangles.size(), 2u);
-    EXPECT_NEAR(sumTrianglesArea(result.triangles), 1.0, EPSILON<double>);
-    EXPECT_TRUE(allTrianglesCCW(result.triangles, EPSILON<double>));
+    const auto triangles = materializeTriangles(result);
+    EXPECT_EQ(triangles.size(), 2u);
+    EXPECT_NEAR(sumTrianglesArea(triangles), 1.0, EPSILON<double>);
+    EXPECT_TRUE(allTrianglesCCW(triangles, EPSILON<double>));
 }
 
 // Пустой полигон и полигон из одной вершины — тот же отказ, что и для двух вершин.
@@ -298,12 +308,12 @@ TEST(MonotoneTriangulationTest, RejectsEmptyAndSingleVertexPolygons) {
     auto empty = mt.triangulate(Polygon2<double>{});
     EXPECT_FALSE(empty);
     EXPECT_EQ(empty.error->code, geo::ErrorCode::NotEnoughVertices);
-    EXPECT_TRUE(empty.triangles.empty());
+    EXPECT_TRUE(empty.faces.empty());
 
     auto single = mt.triangulate(Polygon2<double>{{0.0, 0.0}});
     EXPECT_FALSE(single);
     EXPECT_EQ(single.error->code, geo::ErrorCode::NotEnoughVertices);
-    EXPECT_TRUE(single.triangles.empty());
+    EXPECT_TRUE(single.faces.empty());
 }
 
 // Полностью коллинеарный полигон не имеет площади и не может быть
@@ -315,7 +325,7 @@ TEST(MonotoneTriangulationTest, RejectsDegenerateCollinearPolygon) {
     auto result = mt.triangulate(collinear);
 
     EXPECT_FALSE(result);
-    EXPECT_TRUE(result.triangles.empty());
+    EXPECT_TRUE(result.faces.empty());
 }
 
 // Шаги sweep-фазы должны записывать y-координату линии заметания,
@@ -342,4 +352,65 @@ TEST(MonotoneTriangulationTest, SweepStepsRecordSweepLineY) {
     for (size_t i = 1; i < sweepYs.size(); ++i) {
         EXPECT_LE(sweepYs[i], sweepYs[i - 1]);
     }
+}
+
+// ============================================================================
+// Индексный вывод (faces + vertices) — Этап 1 Roadmap
+// ============================================================================
+
+namespace {
+
+void expectMonotoneIndexedResultValid(const Polygon2<double>& input) {
+    MonotoneTriangulation<double> mt;
+    auto res = mt.triangulate(input);
+    ASSERT_TRUE(res) << res.error->debugMessage;
+
+    const size_t n = input.size();
+
+    // vertices — это исходный полигон без изменений
+    ASSERT_EQ(res.vertices.size(), n);
+    for (size_t i = 0; i < n; ++i) {
+        EXPECT_EQ(res.vertices[i], input[i]);
+    }
+
+    // количество граней = n - 2
+    ASSERT_EQ(res.faces.size(), n - 2);
+
+    for (size_t i = 0; i < res.faces.size(); ++i) {
+        const auto& f = res.faces[i];
+        for (auto idx : f) {
+            EXPECT_LT(idx, res.vertices.size());
+        }
+
+        // ориентация грани — CCW
+        Polygon2<double> triPoly = {
+            res.vertices[f[0]], res.vertices[f[1]], res.vertices[f[2]]};
+        EXPECT_GT(signedArea2D(triPoly), 0.0);
+    }
+}
+
+} // namespace
+
+TEST(MonotoneIndexedTest, SquareFaces) {
+    expectMonotoneIndexedResultValid(makeSquare());
+}
+
+TEST(MonotoneIndexedTest, LShapeFaces) {
+    expectMonotoneIndexedResultValid(makeLShape());
+}
+
+TEST(MonotoneIndexedTest, SplitMergeFaces) {
+    expectMonotoneIndexedResultValid(makeSplitMergePolygon());
+}
+
+TEST(MonotoneIndexedTest, ErrorPathsLeaveFacesEmpty) {
+    MonotoneTriangulation<double> mt;
+
+    auto res = mt.triangulate(makeBowTie()); // самопересечение
+    EXPECT_FALSE(res);
+    EXPECT_TRUE(res.faces.empty());
+
+    res = mt.triangulate(Polygon2<double>{{0.0, 0.0}, {1.0, 0.0}}); // < 3 вершин
+    EXPECT_FALSE(res);
+    EXPECT_TRUE(res.faces.empty());
 }
