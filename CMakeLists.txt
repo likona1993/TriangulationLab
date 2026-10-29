@@ -28,6 +28,8 @@ set(CMAKE_AUTOUIC ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets OpenGL)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets OpenGL)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Опциональные зависимости
 find_package(Eigen3 QUIET)
 
